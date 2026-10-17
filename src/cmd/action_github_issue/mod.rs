@@ -68,6 +68,15 @@ pub async fn main(
     }
   }
 
+  multica::update_issue_status(
+    &config.multica_url,
+    &config.multica_token,
+    &config.multica_workspace_id,
+    &outcome.issue().id,
+    IssueStatus::Todo
+  )
+  .await?;
+
   // github::add_label(&config.github_token, &issue, &config.label).await?;
   // println!("         labelled {} as {}", reference, config.label);
 

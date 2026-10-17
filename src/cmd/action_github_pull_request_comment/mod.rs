@@ -37,27 +37,34 @@ pub async fn main(
   )
   .await?;
 
-  let issue_id = match found.first() {
-    Some(issue) => issue.id.clone(),
+  match found.first() {
+    Some(issue) => {
+
+    },
     None => {
-      let outcome = multica::create_issue(
+      multica::create_issue(
         &config.multica_url,
         &config.multica_token,
         &config.multica_workspace_id,
         CreateIssue {
-          title: "testing",
-          description: "",
+          title: &format!("Address comments on PR: {}", key),
+          description: &description_initial(),
           project_id: config.multica_project_id.as_deref(),
           agent: &config.multica_agent,
           metadata,
         },
       )
       .await?;
-      outcome.issue().id.clone()
     }
   };
 
-  println!("{issue_id}");
-
   Ok(())
+}
+
+fn description_initial() -> String {
+  "".to_string()
+}
+
+fn description_comment() -> String {
+  "".to_string()
 }
