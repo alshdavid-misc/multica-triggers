@@ -6,6 +6,7 @@ use crate::platform::github::GithubIssue;
 use crate::platform::multica;
 use crate::platform::multica::CreateIssue;
 use crate::platform::multica::CreateIssueOutcome;
+use crate::platform::multica::IssueStatus;
 
 /// Number of CI fix attempts the Multica agent is allowed to make.
 const MAX_CI_FIX_ATTEMPTS: u32 = 5;
@@ -67,8 +68,8 @@ pub async fn main(
     }
   }
 
-  github::add_label(&config.github_token, &issue, &config.label).await?;
-  println!("         labelled {} as {}", reference, config.label);
+  // github::add_label(&config.github_token, &issue, &config.label).await?;
+  // println!("         labelled {} as {}", reference, config.label);
 
   Ok(())
 }

@@ -3,8 +3,22 @@ use std::collections::HashMap;
 use reqwest::Client;
 use reqwest::StatusCode;
 use serde::Deserialize;
+use serde::Serialize;
 
 use super::MulticaIssue;
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
+pub enum IssueStatus {
+  Backlog,
+  Todo,
+  InProgress,
+  InReview,
+  Done,
+  Blocked,
+  Cancelled,
+}
 
 /// Parameters for creating a Multica issue.
 #[derive(Debug)]
@@ -13,6 +27,7 @@ pub struct CreateIssue<'a> {
   pub description: &'a str,
   pub project_id: Option<&'a str>,
   pub agent: &'a str,
+  // pub status: IssueStatus,
   pub metadata: HashMap<String, String>,
 }
 
@@ -26,7 +41,7 @@ pub enum CreateIssueOutcome {
 }
 
 impl CreateIssueOutcome {
-  fn issue(&self) -> &MulticaIssue {
+  pub fn issue(&self) -> &MulticaIssue {
     match self {
       CreateIssueOutcome::Created(issue) | CreateIssueOutcome::Duplicate(issue) => issue,
     }
@@ -49,6 +64,7 @@ pub async fn create_issue(
     "project_id": issue.project_id,
     "assignee_type": "agent",
     "assignee_id": issue.agent,
+    "status": IssueStatus::Backlog,
   });
 
   let response = Client::new()
@@ -90,6 +106,35 @@ pub async fn create_issue(
   }
 
   Ok(outcome)
+}
+
+/// Set an issue's status.
+///
+/// Moving an agent-assigned issue out of `backlog` starts the agent's run.
+pub async fn update_issue_status(
+  base_url: &str,
+  token: &str,
+  workspace_id: &str,
+  issue_id: &str,
+  status: IssueStatus,
+) -> anyhow::Result<MulticaIssue> {
+  let response = Client::new()
+    .put(format!("{base_url}/api/issues/{issue_id}"))
+    .header("Content-Type", "application/json")
+    .header("Authorization", format!("Bearer {token}"))
+    .header("X-Workspace-ID", workspace_id)
+    .json(&serde_json::json!({ "status": status }))
+    .send()
+    .await?;
+
+  let status_code = response.status();
+
+  if !status_code.is_success() {
+    let text = response.text().await.unwrap_or_default();
+    anyhow::bail!("Multica API error {status_code} updating status of {issue_id}: {text}");
+  }
+
+  Ok(response.json().await?)
 }
 
 /// Set a single metadata key on an issue.
