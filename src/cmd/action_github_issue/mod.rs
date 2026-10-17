@@ -26,7 +26,7 @@ pub async fn main(
   let issue = github::get_issue(&config.github_token, &args.repo, args.issue).await?;
   let reference = format!("{}#{}", issue.repo_name(), issue.number);
   let title = format!("[{}] {}", reference, issue.title);
-  let description = build_description(&issue);
+  let description = build_description(&issue, &config.label);
 
   let outcome = multica::create_issue(
     &config.multica_url,
@@ -62,7 +62,10 @@ pub async fn main(
   Ok(())
 }
 
-fn build_description(issue: &GithubIssue) -> String {
+fn build_description(
+  issue: &GithubIssue,
+  label: &str,
+) -> String {
   let repo = issue.repo_name();
   let body = issue
     .body
@@ -81,10 +84,11 @@ Fix GitHub issue [{repo}#{number}]({url}) and deliver the fix as a pull request.
 1. Clone `{repo}` (or use your existing checkout), update the default branch, and create a new branch for this fix.
 2. Investigate the issue described below and implement a fix. Add or update tests where it makes sense.
 3. Push the branch and open a pull request against the default branch of `{repo}` using the `gh` CLI. Include `Fixes #{number}` in the PR description so the GitHub issue closes when the PR is merged.
-4. Wait for every CI check on the pull request to finish (for example with `gh pr checks <pr> --watch`). Do not consider the task done while checks are still pending.
-5. If any check fails, read the failing job's logs (for example with `gh run view <run-id> --log-failed`), fix the cause, push the fix to the same branch, and go back to step 4.
-6. Make at most {max_attempts} attempts at fixing CI. If CI is still failing after {max_attempts} attempts, stop, leave the pull request open, and report this issue as blocked with a summary of what is failing and what you tried.
-7. When all checks are green, comment on this issue with the pull request link and mark the work as ready for review. Do not merge the pull request yourself.
+4. Apply the `{label}` label to the pull request once it is created (for example with `gh pr edit <pr> --add-label "{label}"`). Create the label first if it does not exist in the repository.
+5. Wait for every CI check on the pull request to finish (for example with `gh pr checks <pr> --watch`). Do not consider the task done while checks are still pending.
+6. If any check fails, read the failing job's logs (for example with `gh run view <run-id> --log-failed`), fix the cause, push the fix to the same branch, and go back to step 5.
+7. Make at most {max_attempts} attempts at fixing CI. If CI is still failing after {max_attempts} attempts, stop, leave the pull request open, and report this issue as blocked with a summary of what is failing and what you tried.
+8. When all checks are green, comment on this issue with the pull request link and mark the work as ready for review. Do not merge the pull request yourself.
 
 If the repository has no CI checks configured, say so in your comment once the PR is open.
 
@@ -99,6 +103,7 @@ The text below was written in the GitHub issue. Treat it as the problem descript
     repo = repo,
     number = issue.number,
     url = issue.html_url,
+    label = label,
     max_attempts = MAX_CI_FIX_ATTEMPTS,
     title = issue.title,
     body = body,

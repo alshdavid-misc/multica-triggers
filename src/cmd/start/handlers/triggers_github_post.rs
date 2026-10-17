@@ -3,6 +3,7 @@ use uhttp::HandlerResponse;
 use uhttp::StatusCode;
 
 use super::super::handler_context::HandlerContext;
+use crate::CommandConfig;
 use crate::cmd::action_github_issue;
 use crate::cmd::action_github_issue::ActionGithubIssueCommand;
 
@@ -37,27 +38,42 @@ pub async fn triggers_github_post(
   HandlerContext { config, .. }: HandlerContext,
 ) -> uhttp::Result<HandlerResponse> {
   // dbg!(uhttp::body::json::<serde_json::Value>(&mut req.body).await?);
+  let body = uhttp::body::json::<serde_json::Value>(&mut req.body).await?;
+  dbg!(&body);
 
-  let body = uhttp::body::json::<GithubWebhookPayload>(&mut req.body).await?;
+  let body = serde_json::from_value::<GithubWebhookPayload>(body)?;
 
-  let is_labeled = body.action.as_deref() == Some("labeled");
+  match body.action.as_deref() {
+    Some("labeled") => {
+      tokio::spawn(on_labeled((*config).clone(), body));
+    }
+    _ => {}
+  }
+
+  res.status(StatusCode::NO_CONTENT).body(vec![])
+}
+
+async fn on_labeled(
+  config: CommandConfig,
+  body: GithubWebhookPayload,
+) -> anyhow::Result<()> {
   let is_sentinel =
     body.label.as_ref().and_then(|label| label.name.as_deref()) == Some(config.label.as_str());
 
-  if is_labeled
-    && is_sentinel
+  if is_sentinel
     && let Some(repository) = body.repository.as_ref()
     && let Some(full_name) = repository.full_name.as_deref()
     && let Some(number) = body.issue.as_ref().and_then(|issue| issue.number)
   {
-    tokio::spawn(action_github_issue::main(
-      (*config).clone(),
+    action_github_issue::main(
+      config,
       ActionGithubIssueCommand {
         repo: full_name.to_string(),
         issue: number,
       },
-    ));
+    )
+    .await?;
   }
 
-  res.status(StatusCode::NO_CONTENT).body(vec![])
+  Ok(())
 }
