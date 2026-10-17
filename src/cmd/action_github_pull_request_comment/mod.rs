@@ -3,12 +3,16 @@ use crate::CommandConfig;
 #[derive(Debug, clap::Parser)]
 pub struct ActionGithubPullRequestCommentCommand {
   /// GitHub repository slug (`owner/name`)
-  #[clap(long, env = "GITHUB_REPO", hide_env_values = true)]
+  #[clap(long)]
   pub repo: String,
 
   /// GitHub pull request number
-  #[clap(long, env = "GITHUB_PULL_REQUEST", hide_env_values = true)]
+  #[clap(long)]
   pub pull_request: u64,
+
+  /// Comments to reply to (may be repeated)
+  #[clap(long)]
+  pub reply_to: Vec<String>,
 }
 
 pub async fn main(

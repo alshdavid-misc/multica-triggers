@@ -11,11 +11,11 @@ const MAX_CI_FIX_ATTEMPTS: u32 = 5;
 #[derive(Debug, clap::Parser)]
 pub struct ActionGithubIssueCommand {
   /// GitHub repository slug (`owner/name`)
-  #[clap(long, env = "GITHUB_REPO", hide_env_values = true)]
+  #[clap(long)]
   pub repo: String,
 
   /// GitHub issue number
-  #[clap(long, env = "GITHUB_ISSUE", hide_env_values = true)]
+  #[clap(long)]
   pub issue: u64,
 }
 
