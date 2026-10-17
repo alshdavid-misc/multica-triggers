@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::CommandConfig;
 use crate::platform::github;
 use crate::platform::github::GithubIssue;
@@ -28,6 +30,11 @@ pub async fn main(
   let title = format!("[{}] {}", reference, issue.title);
   let description = build_description(&issue, &config.label);
 
+  let mut metadata = HashMap::new();
+  metadata.insert("sentinel".to_string(), format!("{}/{}", args.repo, args.issue));
+  metadata.insert("github_repo".to_string(), args.repo.clone());
+  metadata.insert("github_issue".to_string(), args.issue.to_string());
+
   let outcome = multica::create_issue(
     &config.multica_url,
     &config.multica_token,
@@ -37,6 +44,7 @@ pub async fn main(
       description: &description,
       project_id: config.multica_project_id.as_deref(),
       agent: &config.multica_agent,
+      metadata,
     },
   )
   .await?;
