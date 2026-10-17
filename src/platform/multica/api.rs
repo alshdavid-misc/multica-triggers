@@ -27,7 +27,6 @@ pub struct CreateIssue<'a> {
   pub description: &'a str,
   pub project_id: Option<&'a str>,
   pub agent: &'a str,
-  // pub status: IssueStatus,
   pub metadata: HashMap<String, String>,
 }
 
@@ -108,22 +107,32 @@ pub async fn create_issue(
   Ok(outcome)
 }
 
+#[derive(Debug, Deserialize)]
+struct DuplicateResponse {
+  code: Option<String>,
+  issue: Option<MulticaIssue>,
+}
+
 /// Set an issue's status.
 ///
-/// Moving an agent-assigned issue out of `backlog` starts the agent's run.
+/// Only leaving `backlog` starts the agent's run; `suppress_run` skips that.
 pub async fn update_issue_status(
   base_url: &str,
   token: &str,
   workspace_id: &str,
   issue_id: &str,
   status: IssueStatus,
+  suppress_run: bool,
 ) -> anyhow::Result<MulticaIssue> {
   let response = Client::new()
     .put(format!("{base_url}/api/issues/{issue_id}"))
     .header("Content-Type", "application/json")
     .header("Authorization", format!("Bearer {token}"))
     .header("X-Workspace-ID", workspace_id)
-    .json(&serde_json::json!({ "status": status }))
+    .json(&serde_json::json!({
+      "status": status,
+      "suppress_run": suppress_run,
+    }))
     .send()
     .await?;
 
@@ -135,6 +144,36 @@ pub async fn update_issue_status(
   }
 
   Ok(response.json().await?)
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueStatusResponse {
+  status: String,
+}
+
+/// Fetch an issue's current status key.
+async fn get_issue_status(
+  base_url: &str,
+  token: &str,
+  workspace_id: &str,
+  issue_id: &str,
+) -> anyhow::Result<String> {
+  let response = Client::new()
+    .get(format!("{base_url}/api/issues/{issue_id}"))
+    .header("Authorization", format!("Bearer {token}"))
+    .header("X-Workspace-ID", workspace_id)
+    .send()
+    .await?;
+
+  let status = response.status();
+
+  if !status.is_success() {
+    let text = response.text().await.unwrap_or_default();
+    anyhow::bail!("Multica API error {status} fetching {issue_id}: {text}");
+  }
+
+  let data: IssueStatusResponse = response.json().await?;
+  Ok(data.status)
 }
 
 /// Set a single metadata key on an issue.
@@ -165,12 +204,6 @@ async fn set_issue_metadata(
   Ok(())
 }
 
-#[derive(Debug, Deserialize)]
-struct DuplicateResponse {
-  code: Option<String>,
-  issue: Option<MulticaIssue>,
-}
-
 /// Find open issues whose metadata contains every given key/value pair.
 pub async fn find_issues_by_metadata(
   base_url: &str,
@@ -180,7 +213,6 @@ pub async fn find_issues_by_metadata(
 ) -> anyhow::Result<Vec<MulticaIssue>> {
   let body = serde_json::json!({
     "metadata": serde_json::to_string(metadata)?,
-    "open_only": "true",
   });
 
   let response = Client::new()
@@ -206,4 +238,49 @@ pub async fn find_issues_by_metadata(
 #[derive(Debug, Deserialize)]
 struct QueryIssuesResponse {
   issues: Vec<MulticaIssue>,
+}
+
+/// Add a top-level comment and make sure the assigned agent picks it up.
+///
+/// The issue is moved to `todo` before commenting so the agent never reads a
+/// stale `in_review` or `cancelled` status. The comment, not the status change,
+/// starts the run, so the status change suppresses its own run.
+pub async fn add_issue_comment(
+  base_url: &str,
+  token: &str,
+  workspace_id: &str,
+  issue_id: &str,
+  comment: &str,
+) -> anyhow::Result<()> {
+  let current = get_issue_status(base_url, token, workspace_id, issue_id).await?;
+
+  if !matches!(current.as_str(), "todo" | "in_progress") {
+    update_issue_status(
+      base_url,
+      token,
+      workspace_id,
+      issue_id,
+      IssueStatus::Todo,
+      true,
+    )
+    .await?;
+  }
+
+  let response = Client::new()
+    .post(format!("{base_url}/api/issues/{issue_id}/comments"))
+    .header("Content-Type", "application/json")
+    .header("Authorization", format!("Bearer {token}"))
+    .header("X-Workspace-ID", workspace_id)
+    .json(&serde_json::json!({ "content": comment }))
+    .send()
+    .await?;
+
+  let status = response.status();
+
+  if !status.is_success() {
+    let text = response.text().await.unwrap_or_default();
+    anyhow::bail!("Multica API error {status} commenting on {issue_id}: {text}");
+  }
+
+  Ok(())
 }

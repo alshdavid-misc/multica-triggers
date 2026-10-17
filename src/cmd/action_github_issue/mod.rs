@@ -73,7 +73,8 @@ pub async fn main(
     &config.multica_token,
     &config.multica_workspace_id,
     &outcome.issue().id,
-    IssueStatus::Todo
+    IssueStatus::Todo,
+    false,
   )
   .await?;
 

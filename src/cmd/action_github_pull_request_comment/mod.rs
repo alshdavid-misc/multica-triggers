@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use crate::CommandConfig;
+use crate::platform::crypto;
 use crate::platform::multica;
 use crate::platform::multica::CreateIssue;
+use crate::platform::multica::CreateIssueOutcome;
 use crate::platform::multica::IssueStatus;
 
 #[derive(Debug, clap::Parser)]
@@ -14,17 +16,14 @@ pub struct ActionGithubPullRequestCommentCommand {
   /// GitHub pull request number
   #[clap(long)]
   pub pull_request: u64,
-
-  /// Comments to reply to (may be repeated)
-  #[clap(long)]
-  pub reply_to: Vec<String>,
 }
 
 pub async fn main(
   config: CommandConfig,
   args: ActionGithubPullRequestCommentCommand,
 ) -> anyhow::Result<()> {
-  let key = format!("{}/pulls/{}", args.repo, args.pull_request);
+  let reference = format!("{}/pulls/{}", args.repo, args.pull_request);
+  let key = crypto::hash_key(&reference);
 
   let mut metadata = HashMap::new();
   metadata.insert(key.clone(), key.clone());
@@ -39,15 +38,22 @@ pub async fn main(
 
   match found.first() {
     Some(issue) => {
-
-    },
+      multica::add_issue_comment(
+        &config.multica_url,
+        &config.multica_token,
+        &config.multica_workspace_id,
+        &issue.id,
+        &description_comment(),
+      )
+      .await?;
+    }
     None => {
-      multica::create_issue(
+      let outcome = multica::create_issue(
         &config.multica_url,
         &config.multica_token,
         &config.multica_workspace_id,
         CreateIssue {
-          title: &format!("Address comments on PR: {}", key),
+          title: &format!("Address comments on PR: {}", reference),
           description: &description_initial(),
           project_id: config.multica_project_id.as_deref(),
           agent: &config.multica_agent,
@@ -55,6 +61,30 @@ pub async fn main(
         },
       )
       .await?;
+
+      match outcome {
+        CreateIssueOutcome::Created(issue) => {
+          multica::update_issue_status(
+            &config.multica_url,
+            &config.multica_token,
+            &config.multica_workspace_id,
+            &issue.id,
+            IssueStatus::Todo,
+            false,
+          )
+          .await?;
+        }
+        CreateIssueOutcome::Duplicate(issue) => {
+          multica::add_issue_comment(
+            &config.multica_url,
+            &config.multica_token,
+            &config.multica_workspace_id,
+            &issue.id,
+            &description_comment(),
+          )
+          .await?;
+        }
+      }
     }
   };
 
