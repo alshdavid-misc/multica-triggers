@@ -31,7 +31,10 @@ pub async fn main(
   let description = build_description(&issue, &config.label);
 
   let mut metadata = HashMap::new();
-  metadata.insert("sentinel".to_string(), format!("{}/{}", args.repo, args.issue));
+  metadata.insert(
+    "sentinel".to_string(),
+    format!("{}/{}", args.repo, args.issue),
+  );
   metadata.insert("github_repo".to_string(), args.repo.clone());
   metadata.insert("github_issue".to_string(), args.issue.to_string());
 

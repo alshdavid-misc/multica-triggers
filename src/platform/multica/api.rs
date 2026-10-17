@@ -125,3 +125,40 @@ struct DuplicateResponse {
   code: Option<String>,
   issue: Option<MulticaIssue>,
 }
+
+/// Find open issues whose metadata contains every given key/value pair.
+pub async fn find_issues_by_metadata(
+  base_url: &str,
+  token: &str,
+  workspace_id: &str,
+  metadata: &HashMap<String, String>,
+) -> anyhow::Result<Vec<MulticaIssue>> {
+  let body = serde_json::json!({
+    "metadata": serde_json::to_string(metadata)?,
+    "open_only": "true",
+  });
+
+  let response = Client::new()
+    .post(format!("{base_url}/api/issues/query"))
+    .header("Content-Type", "application/json")
+    .header("Authorization", format!("Bearer {token}"))
+    .header("X-Workspace-ID", workspace_id)
+    .json(&body)
+    .send()
+    .await?;
+
+  let status = response.status();
+
+  if !status.is_success() {
+    let text = response.text().await.unwrap_or_default();
+    anyhow::bail!("Multica API error {status}: {text}");
+  }
+
+  let data: QueryIssuesResponse = response.json().await?;
+  Ok(data.issues)
+}
+
+#[derive(Debug, Deserialize)]
+struct QueryIssuesResponse {
+  issues: Vec<MulticaIssue>,
+}
