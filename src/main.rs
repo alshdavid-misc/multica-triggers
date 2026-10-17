@@ -54,6 +54,12 @@ enum Commands {
   #[clap(name = "action-github-issue")]
   ActionGithubIssue(cmd::action_github_issue::ActionGithubIssueCommand),
 
+  /// Import a single GitHub pull request comment into Multica
+  #[clap(name = "action-github-pull-request-comment")]
+  ActionGithubPullRequestComment(
+    cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand,
+  ),
+
   /// Start the service
   #[clap(name = "start")]
   Start(cmd::start::StartCommand),
@@ -65,6 +71,9 @@ async fn main() -> anyhow::Result<()> {
   match cmd.command {
     Commands::Update(args) => cmd::update::main(args).await,
     Commands::ActionGithubIssue(args) => cmd::action_github_issue::main(cmd.config, args).await,
+    Commands::ActionGithubPullRequestComment(args) => {
+      cmd::action_github_pull_request_comment::main(cmd.config, args).await
+    }
     Commands::Start(args) => cmd::start::main(cmd.config, args).await,
   }
 }
