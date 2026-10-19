@@ -1,8 +1,13 @@
 mod cmd;
+mod context;
 mod platform;
+
+use std::sync::Arc;
 
 use clap::Parser;
 use clap::Subcommand;
+
+use crate::context::AppContext;
 
 #[derive(Debug, Parser)]
 struct Command {
@@ -42,6 +47,10 @@ struct CommandConfig {
   /// Label applied to the GitHub issue once it has been imported
   #[clap(long, env = "GITHUB_ISSUE_LABEL")]
   pub label: String,
+
+  /// Users that the triggers will respond to
+  #[clap(long, env = "USER_REPLY_LIST")]
+  pub user_reply_list: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -68,12 +77,28 @@ enum Commands {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
   let cmd = Command::parse();
+  let github = octocrab::Octocrab::builder()
+    .personal_token(cmd.config.github_token.clone())
+    .build()?;
+
+  let ctx = AppContext {
+    multica_url: cmd.config.multica_url,
+    multica_token: cmd.config.multica_token,
+    multica_workspace_id: cmd.config.multica_workspace_id,
+    multica_project_id: cmd.config.multica_project_id,
+    multica_agent: cmd.config.multica_agent,
+    github_token: cmd.config.github_token,
+    github_issue_label: cmd.config.label,
+    github_user_reply_list: cmd.config.user_reply_list,
+    github: Arc::new(github),
+  };
+
   match cmd.command {
     Commands::Update(args) => cmd::update::main(args).await,
-    Commands::ActionGithubIssue(args) => cmd::action_github_issue::main(cmd.config, args).await,
+    Commands::ActionGithubIssue(args) => cmd::action_github_issue::main(ctx, args).await,
     Commands::ActionGithubPullRequestComment(args) => {
-      cmd::action_github_pull_request_comment::main(cmd.config, args).await
+      cmd::action_github_pull_request_comment::main(ctx, args).await
     }
-    Commands::Start(args) => cmd::start::main(cmd.config, args).await,
+    Commands::Start(args) => cmd::start::main(ctx, args).await,
   }
 }

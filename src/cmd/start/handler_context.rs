@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
 use super::StartCommand;
-use crate::CommandConfig;
+use crate::context::AppContext;
 
 #[derive(Clone)]
 pub struct HandlerContext {
-  pub config: Arc<CommandConfig>,
-  #[allow(dead_code)]
+  pub ctx: AppContext,
   pub args: Arc<StartCommand>,
 }

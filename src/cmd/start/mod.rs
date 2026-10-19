@@ -6,7 +6,7 @@ use uhttp::Router;
 use uhttp::Server;
 
 use self::handler_context::HandlerContext;
-use crate::CommandConfig;
+use crate::context::AppContext;
 
 #[derive(Debug, clap::Parser)]
 pub struct StartCommand {
@@ -30,14 +30,14 @@ pub struct StartCommand {
 }
 
 pub async fn main(
-  config: CommandConfig,
+  ctx: AppContext,
   args: StartCommand,
 ) -> anyhow::Result<()> {
   let bind = format!("{}:{}", args.address, args.port);
   println!("Listening on: http://{}", bind);
 
   let mut app = Router::new(HandlerContext {
-    config: Arc::new(config),
+    ctx,
     args: Arc::new(args),
   });
 

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use crate::CommandConfig;
+use octocrab::models::issues::Issue;
+
+use crate::context::AppContext;
 use crate::platform::github;
-use crate::platform::github::GithubIssue;
 use crate::platform::multica;
 use crate::platform::multica::CreateIssue;
 use crate::platform::multica::CreateIssueOutcome;
@@ -23,13 +24,22 @@ pub struct ActionGithubIssueCommand {
 }
 
 pub async fn main(
-  config: CommandConfig,
+  AppContext {
+    github,
+    multica_url,
+    multica_token,
+    multica_workspace_id,
+    multica_project_id,
+    multica_agent,
+    github_issue_label: label,
+    ..
+  }: AppContext,
   args: ActionGithubIssueCommand,
 ) -> anyhow::Result<()> {
-  let issue = github::get_issue(&config.github_token, &args.repo, args.issue).await?;
-  let reference = format!("{}#{}", issue.repo_name(), issue.number);
+  let issue = github::get_issue(&github, &args.repo, args.issue).await?;
+  let reference = format!("{}#{}", args.repo, issue.number);
   let title = format!("[{}] {}", reference, issue.title);
-  let description = build_description(&issue, &config.label);
+  let description = build_description(&issue, &args.repo, &label);
 
   let mut metadata = HashMap::new();
   metadata.insert(
@@ -40,14 +50,14 @@ pub async fn main(
   metadata.insert("github_issue".to_string(), args.issue.to_string());
 
   let outcome = multica::create_issue(
-    &config.multica_url,
-    &config.multica_token,
-    &config.multica_workspace_id,
+    &multica_url,
+    &multica_token,
+    &multica_workspace_id,
     CreateIssue {
       title: &title,
       description: &description,
-      project_id: config.multica_project_id.as_deref(),
-      agent: &config.multica_agent,
+      project_id: multica_project_id.as_deref(),
+      agent: &multica_agent,
       metadata,
     },
   )
@@ -69,9 +79,9 @@ pub async fn main(
   }
 
   multica::update_issue_status(
-    &config.multica_url,
-    &config.multica_token,
-    &config.multica_workspace_id,
+    &multica_url,
+    &multica_token,
+    &multica_workspace_id,
     &outcome.issue().id,
     IssueStatus::Todo,
     false,
@@ -85,10 +95,10 @@ pub async fn main(
 }
 
 fn build_description(
-  issue: &GithubIssue,
+  issue: &Issue,
+  repo: &str,
   label: &str,
 ) -> String {
-  let repo = issue.repo_name();
   let body = issue
     .body
     .as_deref()
