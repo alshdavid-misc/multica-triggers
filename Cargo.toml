@@ -28,3 +28,4 @@ sha2 = "0.10"
 uhttp = { version = "0.22.0", features = ["full"] }
 octocrab = "0.54.5"
 handlebars = "6.4.4"
+uuid = { version = "1.28.0", features = ["v4"] }

@@ -2,6 +2,8 @@ mod prompt;
 
 use std::collections::HashMap;
 
+use uuid::Uuid;
+
 use crate::CommandConfig;
 use crate::context::AppContext;
 use crate::platform::crypto;
@@ -25,6 +27,18 @@ pub struct ActionGithubPullRequestCommentCommand {
   /// GitHub pull request number
   #[clap(long)]
   pub comment_id: u64,
+
+  /// Where the comment was left on the pull request
+  #[clap(long, value_enum)]
+  pub kind: PullRequestCommentKind,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum PullRequestCommentKind {
+  /// Conversation tab comment, not tied to a file or line
+  General,
+  /// Review comment on a line of the diff
+  Inline,
 }
 
 pub async fn main(
@@ -42,11 +56,23 @@ pub async fn main(
     repo,
     pull_request,
     comment_id,
+    kind,
   }: ActionGithubPullRequestCommentCommand,
 ) -> anyhow::Result<()> {
   println!("Comment left");
 
-  let github_comment = match github::get_pr_comment(&github, &repo, comment_id).await {
+  let multica_comment = match kind {
+    PullRequestCommentKind::General => github::get_issue_comment(&github, &repo, comment_id)
+      .await
+      .and_then(|comment| {
+        prompt::prompt_pull_request_general_comment(comment.body.as_deref().unwrap_or_default())
+      }),
+    PullRequestCommentKind::Inline => github::get_pr_comment(&github, &repo, comment_id)
+      .await
+      .and_then(|comment| prompt::prompt_pull_request_inline_comment(&comment)),
+  };
+
+  let multica_comment = match multica_comment {
     Ok(comment) => comment,
     Err(err) => {
       eprintln!("{:?}", err);
@@ -54,21 +80,26 @@ pub async fn main(
     }
   };
 
-  let username = github_comment.user.map(|user| user.login);
-  let content = github_comment.body;
-
   let github_pull_request = github::get_pull_request(&github, &repo, pull_request).await?;
   let key = crypto::hash_key(&format!("{repo}/pulls/{pull_request}"));
 
   let multica_issue = create_or_get_multica_ticket(
     &key,
     &repo,
-    pull_request,
     &github_pull_request.head.ref_field,
     &multica_url,
     &multica_token,
     &multica_workspace_id,
     multica_project_id.as_deref(),
+  )
+  .await?;
+
+  multica::add_issue_comment(
+    &multica_url,
+    &multica_token,
+    &multica_workspace_id,
+    &multica_issue.id,
+    &multica_comment,
   )
   .await?;
 
@@ -144,7 +175,6 @@ pub async fn main(
 async fn create_or_get_multica_ticket(
   key: &str,
   repo: &str,
-  pull_request: u64,
   branch: &str,
   multica_url: &str,
   multica_token: &str,
@@ -167,7 +197,7 @@ async fn create_or_get_multica_ticket(
     multica_token,
     multica_workspace_id,
     CreateIssue {
-      title: &format!("Github Pull Request: {repo}/pulls/{pull_request}"),
+      title: &format!("Review feedback: {branch} - {}", Uuid::new_v4()),
       description: &prompt::prompt_top_level(repo, branch)?,
       project_id: multica_project_id,
       agent: None,

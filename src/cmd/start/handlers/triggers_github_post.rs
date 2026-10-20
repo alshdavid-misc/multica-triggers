@@ -125,15 +125,24 @@ async fn on_pr_comment(
   comment: PrComment,
 ) -> anyhow::Result<()> {
   use crate::cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand;
+  use crate::cmd::action_github_pull_request_comment::PullRequestCommentKind;
   use crate::cmd::action_github_pull_request_comment::main;
 
   let repo = repository
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request comment event has no repository"))?;
 
-  let (pull_request, comment_id) = match &comment {
-    PrComment::Conversation(payload) => (payload.issue.number, payload.comment.id),
-    PrComment::Review(payload) => (payload.pull_request.number, payload.comment.id),
+  let (pull_request, comment_id, kind) = match &comment {
+    PrComment::Conversation(payload) => (
+      payload.issue.number,
+      payload.comment.id,
+      PullRequestCommentKind::General,
+    ),
+    PrComment::Review(payload) => (
+      payload.pull_request.number,
+      payload.comment.id,
+      PullRequestCommentKind::Inline,
+    ),
   };
 
   main(
@@ -142,6 +151,7 @@ async fn on_pr_comment(
       repo,
       pull_request,
       comment_id: comment_id.into_inner(),
+      kind,
     },
   )
   .await
