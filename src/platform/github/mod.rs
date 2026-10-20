@@ -2,6 +2,7 @@ mod api;
 mod issue;
 mod webhook;
 
+pub use self::api::add_issue_comment_reaction;
 pub use self::api::add_label;
 pub use self::api::get_issue;
 pub use self::api::get_issue_comment;

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use reqwest::Client;
 use reqwest::StatusCode;
 use serde::Deserialize;
@@ -26,6 +28,7 @@ pub struct CreateIssue<'a> {
   pub description: &'a str,
   pub project_id: Option<&'a str>,
   pub agent: Option<&'a str>,
+  pub metadata: HashMap<String, String>,
 }
 
 /// Outcome of a create-issue request.
@@ -46,6 +49,9 @@ impl CreateIssueOutcome {
 }
 
 /// Create an issue, reporting when an equivalent issue is already active.
+///
+/// Metadata is not a create field — the API only accepts it one key at a time —
+/// so it is written per key once the issue id is known.
 pub async fn create_issue(
   base_url: &str,
   token: &str,
@@ -90,6 +96,18 @@ pub async fn create_issue(
     CreateIssueOutcome::Created(response.json().await?)
   };
 
+  for (key, value) in &issue.metadata {
+    set_issue_metadata(
+      base_url,
+      token,
+      workspace_id,
+      &outcome.issue().id,
+      key,
+      value,
+    )
+    .await?;
+  }
+
   Ok(outcome)
 }
 
@@ -97,6 +115,34 @@ pub async fn create_issue(
 struct DuplicateResponse {
   code: Option<String>,
   issue: Option<MulticaIssue>,
+}
+
+/// Set a single metadata key on an issue.
+async fn set_issue_metadata(
+  base_url: &str,
+  token: &str,
+  workspace_id: &str,
+  issue_id: &str,
+  key: &str,
+  value: &str,
+) -> anyhow::Result<()> {
+  let response = Client::new()
+    .put(format!("{base_url}/api/issues/{issue_id}/metadata/{key}"))
+    .header("Content-Type", "application/json")
+    .header("Authorization", format!("Bearer {token}"))
+    .header("X-Workspace-ID", workspace_id)
+    .json(&serde_json::json!({ "value": value }))
+    .send()
+    .await?;
+
+  let status = response.status();
+
+  if !status.is_success() {
+    let text = response.text().await.unwrap_or_default();
+    anyhow::bail!("Multica API error {status} setting metadata {key}: {text}");
+  }
+
+  Ok(())
 }
 
 /// Set an issue's status.

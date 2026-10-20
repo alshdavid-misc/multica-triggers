@@ -5,6 +5,7 @@ use octocrab::models::issues::Comment;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::Comment as PullRequestComment;
 use octocrab::models::pulls::PullRequest;
+use octocrab::models::reactions::ReactionContent;
 
 pub async fn get_issue(
   client: &Octocrab,
@@ -51,6 +52,20 @@ pub async fn get_pr_comment(
       .get()
       .await?,
   )
+}
+
+pub async fn add_issue_comment_reaction(
+  client: &Octocrab,
+  repo: &str,
+  comment_id: u64,
+  content: ReactionContent,
+) -> anyhow::Result<()> {
+  let (owner, name) = split_repo(repo)?;
+  client
+    .issues(owner, name)
+    .create_comment_reaction(CommentId(comment_id), content)
+    .await?;
+  Ok(())
 }
 
 pub async fn get_user_login(

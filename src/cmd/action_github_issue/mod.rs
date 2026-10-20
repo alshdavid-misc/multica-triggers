@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use octocrab::models::issues::Issue;
 
 use crate::context::AppContext;
@@ -49,6 +51,7 @@ pub async fn main(
       description: &description,
       project_id: multica_project_id.as_deref(),
       agent: Some(&multica_agent),
+      metadata: HashMap::new(),
     },
   )
   .await?;

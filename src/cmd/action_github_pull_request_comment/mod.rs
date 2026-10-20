@@ -1,8 +1,12 @@
 mod prompt;
 
+use std::collections::HashMap;
+
+use octocrab::models::reactions::ReactionContent;
 use uuid::Uuid;
 
 use crate::context::AppContext;
+use crate::platform::crypto;
 use crate::platform::github;
 use crate::platform::multica;
 use crate::platform::multica::CreateIssue;
@@ -50,6 +54,8 @@ pub async fn main(
 
   let description = prompt::prompt_top_level(&repo, &github_pull_request.head.ref_field, body)?;
 
+  let key = crypto::hash_key(&format!("{repo}/pulls/{pull_request}"));
+
   let outcome = multica::create_issue(
     &multica_url,
     &multica_token,
@@ -59,11 +65,14 @@ pub async fn main(
       description: &description,
       project_id: multica_project_id.as_deref(),
       agent: None,
+      metadata: HashMap::from([(key.clone(), key)]),
     },
   )
   .await?;
 
   println!("Created  {}", outcome.issue().identifier);
+
+  github::add_issue_comment_reaction(&github, &repo, comment_id, ReactionContent::Eyes).await?;
 
   Ok(())
 }
