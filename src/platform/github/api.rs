@@ -3,6 +3,7 @@ use octocrab::models::CommentId;
 use octocrab::models::issues::Comment;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::Comment as PullRequestComment;
+use octocrab::models::pulls::PullRequest;
 
 pub async fn get_issue(
   client: &Octocrab,
@@ -25,6 +26,15 @@ pub async fn get_issue_comment(
       .get_comment(CommentId(comment_id))
       .await?,
   )
+}
+
+pub async fn get_pull_request(
+  client: &Octocrab,
+  repo: &str,
+  number: u64,
+) -> anyhow::Result<PullRequest> {
+  let (owner, name) = split_repo(repo)?;
+  Ok(client.pulls(owner, name).get(number).await?)
 }
 
 pub async fn get_pr_comment(

@@ -57,8 +57,22 @@ pub async fn main(
   let username = github_comment.user.map(|user| user.login);
   let content = github_comment.body;
 
-  dbg!(&username);
-  dbg!(&content);
+  let github_pull_request = github::get_pull_request(&github, &repo, pull_request).await?;
+  let key = crypto::hash_key(&format!("{repo}/pulls/{pull_request}"));
+
+  let multica_issue = create_or_get_multica_ticket(
+    &key,
+    &repo,
+    pull_request,
+    &github_pull_request.head.ref_field,
+    &multica_url,
+    &multica_token,
+    &multica_workspace_id,
+    multica_project_id.as_deref(),
+  )
+  .await?;
+
+  
 
   // let reference = format!("{}/pulls/{}", args.repo, args.pull_request);
   // let key = crypto::hash_key(&reference);
