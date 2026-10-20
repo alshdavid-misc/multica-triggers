@@ -5,6 +5,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::MulticaComment;
 use super::MulticaIssue;
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -207,6 +208,30 @@ async fn set_issue_metadata(
   Ok(())
 }
 
+pub async fn list_root_comments(
+  base_url: &str,
+  token: &str,
+  workspace_id: &str,
+  issue_id: &str,
+) -> anyhow::Result<Vec<MulticaComment>> {
+  let response = Client::new()
+    .get(format!("{base_url}/api/issues/{issue_id}/comments"))
+    .query(&[("roots_only", "true")])
+    .header("Authorization", format!("Bearer {token}"))
+    .header("X-Workspace-ID", workspace_id)
+    .send()
+    .await?;
+
+  let status = response.status();
+
+  if !status.is_success() {
+    let text = response.text().await.unwrap_or_default();
+    anyhow::bail!("Multica API error {status} listing comments on {issue_id}: {text}");
+  }
+
+  Ok(response.json().await?)
+}
+
 /// Find open issues whose metadata contains every given key/value pair.
 pub async fn find_issues_by_metadata(
   base_url: &str,
@@ -254,7 +279,8 @@ pub async fn add_issue_comment(
   workspace_id: &str,
   issue_id: &str,
   comment: &str,
-) -> anyhow::Result<()> {
+  parent_id: Option<&str>,
+) -> anyhow::Result<MulticaComment> {
   let current = get_issue_status(base_url, token, workspace_id, issue_id).await?;
 
   if !matches!(current.as_str(), "todo" | "in_progress") {
@@ -274,7 +300,7 @@ pub async fn add_issue_comment(
     .header("Content-Type", "application/json")
     .header("Authorization", format!("Bearer {token}"))
     .header("X-Workspace-ID", workspace_id)
-    .json(&serde_json::json!({ "content": comment }))
+    .json(&serde_json::json!({ "content": comment, "parent_id": parent_id }))
     .send()
     .await?;
 
@@ -285,5 +311,5 @@ pub async fn add_issue_comment(
     anyhow::bail!("Multica API error {status} commenting on {issue_id}: {text}");
   }
 
-  Ok(())
+  Ok(response.json().await?)
 }
