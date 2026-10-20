@@ -48,8 +48,6 @@ pub async fn main(
     multica_token,
     multica_workspace_id,
     multica_project_id,
-    multica_agent,
-    github_issue_label: label,
     ..
   }: AppContext,
   ActionGithubPullRequestCommentCommand {
