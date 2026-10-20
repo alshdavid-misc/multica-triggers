@@ -1,5 +1,6 @@
 mod handler_context;
 mod handlers;
+mod workers;
 use std::sync::Arc;
 
 use uhttp::Router;
