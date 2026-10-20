@@ -2,14 +2,10 @@ mod prompt;
 
 use uuid::Uuid;
 
-use crate::CommandConfig;
 use crate::context::AppContext;
 use crate::platform::github;
 use crate::platform::multica;
 use crate::platform::multica::CreateIssue;
-use crate::platform::multica::CreateIssueOutcome;
-use crate::platform::multica::IssueStatus;
-use crate::platform::multica::MulticaIssue;
 
 #[derive(Debug, clap::Parser)]
 pub struct ActionGithubPullRequestCommentCommand {
@@ -21,21 +17,9 @@ pub struct ActionGithubPullRequestCommentCommand {
   #[clap(long)]
   pub pull_request: u64,
 
-  /// GitHub pull request number
+  /// GitHub top-level pull request comment identifier
   #[clap(long)]
   pub comment_id: u64,
-
-  /// Where the comment was left on the pull request
-  #[clap(long, value_enum)]
-  pub kind: PullRequestCommentKind,
-}
-
-#[derive(Debug, Clone, Copy, clap::ValueEnum)]
-pub enum PullRequestCommentKind {
-  /// Conversation tab comment, not tied to a file or line
-  General,
-  /// Review comment on a line of the diff
-  Inline,
 }
 
 pub async fn main(
@@ -45,187 +29,60 @@ pub async fn main(
     multica_token,
     multica_workspace_id,
     multica_project_id,
-    state,
+    github_machine_user_id,
     ..
   }: AppContext,
   ActionGithubPullRequestCommentCommand {
     repo,
     pull_request,
     comment_id,
-    kind,
   }: ActionGithubPullRequestCommentCommand,
 ) -> anyhow::Result<()> {
-  println!("Comment left");
+  let comment = github::get_issue_comment(&github, &repo, comment_id).await?;
+  let body = comment.body.as_deref().unwrap_or_default();
 
-  let rendered = match kind {
-    PullRequestCommentKind::General => github::get_issue_comment(&github, &repo, comment_id)
-      .await
-      .and_then(|comment| {
-        let prompt =
-          prompt::prompt_pull_request_general_comment(comment.body.as_deref().unwrap_or_default())?;
-        Ok((prompt, None))
-      }),
-    PullRequestCommentKind::Inline => github::get_pr_comment(&github, &repo, comment_id)
-      .await
-      .and_then(|comment| {
-        let prompt = prompt::prompt_pull_request_inline_comment(&comment)?;
-        let reply = comment
-          .in_reply_to_id
-          .map(|id| (id.into_inner(), comment.body));
-        Ok((prompt, reply))
-      }),
-  };
-
-  let (prompt, reply) = match rendered {
-    Ok(rendered) => rendered,
-    Err(err) => {
-      eprintln!("{:?}", err);
-      return Ok(());
-    }
-  };
+  let login = github::get_user_login(&github, github_machine_user_id).await?;
+  if !mentions(body, &login) {
+    return Ok(());
+  }
 
   let github_pull_request = github::get_pull_request(&github, &repo, pull_request).await?;
-  let key = format!("github/{repo}/pulls/{pull_request}");
 
-  let multica_issue = match state.get::<MulticaIssue>(&key).await? {
-    Some(issue) => issue,
-    None => {
-      let issue = create_multica_ticket(
-        &repo,
-        &github_pull_request.head.ref_field,
-        &multica_url,
-        &multica_token,
-        &multica_workspace_id,
-        multica_project_id.as_deref(),
-      )
-      .await?;
-      state.set(&key, &issue).await?;
-      issue
-    }
-  };
+  let description = prompt::prompt_top_level(&repo, &github_pull_request.head.ref_field, body)?;
 
-  let thread_key = format!(
-    "github/{repo}/pulls/{pull_request}/comments/{}",
-    reply.as_ref().map_or(comment_id, |(reply_to, _)| *reply_to)
-  );
-
-  let parent_id = match &reply {
-    Some(_) => state.get::<String>(&thread_key).await?,
-    None => None,
-  };
-
-  // A reply without a thread to sit in is posted top-level, where it needs the
-  // full prompt for the agent to know which code it refers to.
-  let multica_comment = match (&parent_id, reply) {
-    (Some(_), Some((_, body))) => body,
-    _ => prompt,
-  };
-
-  let posted = multica::add_issue_comment(
+  let outcome = multica::create_issue(
     &multica_url,
     &multica_token,
     &multica_workspace_id,
-    &multica_issue.id,
-    &multica_comment,
-    parent_id.as_deref(),
-  )
-  .await?;
-
-  if matches!(kind, PullRequestCommentKind::Inline) && parent_id.is_none() {
-    state.set(&thread_key, &posted.id).await?;
-  }
-
-  // let reference = format!("{}/pulls/{}", args.repo, args.pull_request);
-  // let key = crypto::hash_key(&reference);
-
-  // let mut metadata = HashMap::new();
-  // metadata.insert(key.clone(), key.clone());
-
-  // let found = multica::find_issues_by_metadata(
-  //   &multica_url,
-  //   &multica_token,
-  //   &multica_workspace_id,
-  //   &metadata,
-  // )
-  // .await?;
-
-  // match found.first() {
-  //   Some(issue) => {
-  //     multica::add_issue_comment(
-  //       &multica_url,
-  //       &multica_token,
-  //       &multica_workspace_id,
-  //       &issue.id,
-  //       &description_comment(&args.repo, args.pull_request),
-  //     )
-  //     .await?;
-  //   }
-  //   None => {
-  //     let outcome = multica::create_issue(
-  //       &multica_url,
-  //       &multica_token,
-  //       &multica_workspace_id,
-  //       CreateIssue {
-  //         title: &format!("Address comments on PR: {}", reference),
-  //         description: &description_initial(&args.repo, args.pull_request),
-  //         project_id: multica_project_id.as_deref(),
-  //         agent: &multica_agent,
-  //         metadata,
-  //       },
-  //     )
-  //     .await?;
-
-  //     match outcome {
-  //       CreateIssueOutcome::Created(issue) => {
-  //         multica::update_issue_status(
-  //           &multica_url,
-  //           &multica_token,
-  //           &multica_workspace_id,
-  //           &issue.id,
-  //           IssueStatus::Todo,
-  //           false,
-  //         )
-  //         .await?;
-  //       }
-  //       CreateIssueOutcome::Duplicate(issue) => {
-  //         multica::add_issue_comment(
-  //           &multica_url,
-  //           &multica_token,
-  //           &multica_workspace_id,
-  //           &issue.id,
-  //           &description_comment(&args.repo, args.pull_request),
-  //         )
-  //         .await?;
-  //       }
-  //     }
-  //   }
-  // };
-
-  Ok(())
-}
-
-async fn create_multica_ticket(
-  repo: &str,
-  branch: &str,
-  multica_url: &str,
-  multica_token: &str,
-  multica_workspace_id: &str,
-  multica_project_id: Option<&str>,
-) -> anyhow::Result<MulticaIssue> {
-  let outcome = multica::create_issue(
-    multica_url,
-    multica_token,
-    multica_workspace_id,
     CreateIssue {
-      title: &format!("Review feedback: {}", Uuid::new_v4()),
-      description: &prompt::prompt_top_level(repo, branch)?,
-      project_id: multica_project_id,
+      title: &Uuid::new_v4().to_string(),
+      description: &description,
+      project_id: multica_project_id.as_deref(),
       agent: None,
     },
   )
   .await?;
 
-  match outcome {
-    CreateIssueOutcome::Created(issue) | CreateIssueOutcome::Duplicate(issue) => Ok(issue),
-  }
+  println!("Created  {}", outcome.issue().identifier);
+
+  Ok(())
+}
+
+// GitHub logins are case-insensitive, a longer login sharing the prefix
+// (`@bot` vs `@bot-two`) is a different user, and an `@` inside a word is an
+// email address rather than a mention.
+fn mentions(
+  body: &str,
+  login: &str,
+) -> bool {
+  let is_login_char = |c: char| c.is_ascii_alphanumeric() || c == '-';
+
+  body.match_indices('@').any(|(at, _)| {
+    if body[..at].chars().next_back().is_some_and(is_login_char) {
+      return false;
+    }
+    let rest = &body[at + 1..];
+    let end = rest.find(|c: char| !is_login_char(c)).unwrap_or(rest.len());
+    rest[..end].eq_ignore_ascii_case(login)
+  })
 }

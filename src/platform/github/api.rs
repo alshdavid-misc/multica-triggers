@@ -1,5 +1,6 @@
 use octocrab::Octocrab;
 use octocrab::models::CommentId;
+use octocrab::models::UserId;
 use octocrab::models::issues::Comment;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::Comment as PullRequestComment;
@@ -50,6 +51,13 @@ pub async fn get_pr_comment(
       .get()
       .await?,
   )
+}
+
+pub async fn get_user_login(
+  client: &Octocrab,
+  user_id: u64,
+) -> anyhow::Result<String> {
+  Ok(client.users_by_id(UserId(user_id)).profile().await?.login)
 }
 
 /// Add a label to an issue.

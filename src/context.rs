@@ -14,6 +14,7 @@ pub struct AppContext {
   pub github_token: String,
   pub github_issue_label: String,
   pub github_user_reply_list: String,
+  pub github_machine_user_id: u64,
   pub github: Arc<Octocrab>,
   pub state: Arc<KvStore>,
 }

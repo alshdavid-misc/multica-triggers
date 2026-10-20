@@ -54,6 +54,10 @@ struct CommandConfig {
   #[clap(long, env = "USER_REPLY_LIST")]
   pub user_reply_list: String,
 
+  /// Numeric ID of the machine GitHub user whose mentions create Multica issues
+  #[clap(long, env = "GITHUB_MACHINE_USER_ID")]
+  pub github_machine_user_id: u64,
+
   #[clap(long, env = "MULTICA_TRIGGER_DB", default_value_os_t = default_db_path())]
   pub multica_trigger_db: PathBuf,
 }
@@ -105,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
     github_token: cmd.config.github_token,
     github_issue_label: cmd.config.label,
     github_user_reply_list: cmd.config.user_reply_list,
+    github_machine_user_id: cmd.config.github_machine_user_id,
     github: Arc::new(github),
     state: state,
   };

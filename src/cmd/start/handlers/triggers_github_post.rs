@@ -5,22 +5,11 @@ use octocrab::models::webhook_events::payload::IssueCommentWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssueCommentWebhookEventPayload;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventPayload;
-use octocrab::models::webhook_events::payload::PullRequestReviewCommentWebhookEventAction;
-use octocrab::models::webhook_events::payload::PullRequestReviewCommentWebhookEventPayload;
 use uhttp::HandlerResponse;
 use uhttp::StatusCode;
 
 use super::super::handler_context::HandlerContext;
 use crate::context::AppContext;
-
-/// A comment on a pull request. GitHub delivers these as two different
-/// events: conversation-tab comments arrive as `issue_comment`, and inline
-/// diff comments (including replies) arrive as `pull_request_review_comment`.
-#[derive(Debug)]
-pub enum PrComment {
-  Conversation(Box<IssueCommentWebhookEventPayload>),
-  Review(Box<PullRequestReviewCommentWebhookEventPayload>),
-}
 
 pub async fn triggers_github_post(
   mut req: uhttp::Request,
@@ -64,36 +53,17 @@ pub async fn triggers_github_post(
           tokio::spawn(on_issue_comment(repository, payload));
         }
         (IssueCommentWebhookEventAction::Created, true) => {
-          let comment = PrComment::Conversation(payload);
-          tokio::spawn(on_pr_comment(ctx, repository, comment));
+          tokio::spawn(on_pr_comment(ctx, repository, payload));
         }
         (IssueCommentWebhookEventAction::Edited, true) => {
-          let comment = PrComment::Conversation(payload);
-          tokio::spawn(on_pr_comment_edited(repository, comment));
+          tokio::spawn(on_pr_comment_edited(repository, payload));
         }
         (IssueCommentWebhookEventAction::Deleted, true) => {
-          let comment = PrComment::Conversation(payload);
-          tokio::spawn(on_pr_comment_deleted(repository, comment));
+          tokio::spawn(on_pr_comment_deleted(repository, payload));
         }
         _ => {}
       }
     }
-
-    WebhookEventPayload::PullRequestReviewComment(payload) => match &payload.action {
-      PullRequestReviewCommentWebhookEventAction::Created => {
-        let comment = PrComment::Review(payload);
-        tokio::spawn(on_pr_comment(ctx, repository, comment));
-      }
-      PullRequestReviewCommentWebhookEventAction::Edited => {
-        let comment = PrComment::Review(payload);
-        tokio::spawn(on_pr_comment_edited(repository, comment));
-      }
-      PullRequestReviewCommentWebhookEventAction::Deleted => {
-        let comment = PrComment::Review(payload);
-        tokio::spawn(on_pr_comment_deleted(repository, comment));
-      }
-      _ => {}
-    },
 
     _ => {}
   }
@@ -122,36 +92,21 @@ async fn on_issue_comment(
 async fn on_pr_comment(
   ctx: AppContext,
   repository: Option<Repository>,
-  comment: PrComment,
+  payload: Box<IssueCommentWebhookEventPayload>,
 ) -> anyhow::Result<()> {
   use crate::cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand;
-  use crate::cmd::action_github_pull_request_comment::PullRequestCommentKind;
   use crate::cmd::action_github_pull_request_comment::main;
 
   let repo = repository
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request comment event has no repository"))?;
 
-  let (pull_request, comment_id, kind) = match &comment {
-    PrComment::Conversation(payload) => (
-      payload.issue.number,
-      payload.comment.id,
-      PullRequestCommentKind::General,
-    ),
-    PrComment::Review(payload) => (
-      payload.pull_request.number,
-      payload.comment.id,
-      PullRequestCommentKind::Inline,
-    ),
-  };
-
   main(
     ctx,
     ActionGithubPullRequestCommentCommand {
       repo,
-      pull_request,
-      comment_id: comment_id.into_inner(),
-      kind,
+      pull_request: payload.issue.number,
+      comment_id: payload.comment.id.into_inner(),
     },
   )
   .await
@@ -159,18 +114,18 @@ async fn on_pr_comment(
 
 async fn on_pr_comment_edited(
   _repository: Option<Repository>,
-  comment: PrComment,
+  payload: Box<IssueCommentWebhookEventPayload>,
 ) -> anyhow::Result<()> {
   println!("on_pr_comment_edited");
-  // dbg!(&comment);
+  // dbg!(&payload);
   Ok(())
 }
 
 async fn on_pr_comment_deleted(
   _repository: Option<Repository>,
-  comment: PrComment,
+  payload: Box<IssueCommentWebhookEventPayload>,
 ) -> anyhow::Result<()> {
   println!("on_pr_comment_deleted");
-  // dbg!(&comment);
+  // dbg!(&payload);
   Ok(())
 }
