@@ -73,11 +73,14 @@ pub async fn main(
       .await
       .and_then(|comment| {
         let prompt = prompt::prompt_pull_request_inline_comment(&comment)?;
-        Ok((prompt, comment.in_reply_to_id.map(|id| id.into_inner())))
+        let reply = comment
+          .in_reply_to_id
+          .map(|id| (id.into_inner(), comment.body));
+        Ok((prompt, reply))
       }),
   };
 
-  let (multica_comment, reply_to) = match rendered {
+  let (prompt, reply) = match rendered {
     Ok(rendered) => rendered,
     Err(err) => {
       eprintln!("{:?}", err);
@@ -99,8 +102,8 @@ pub async fn main(
   )
   .await?;
 
-  let parent_id = match reply_to {
-    Some(reply_to) => {
+  let parent_id = match &reply {
+    Some((reply_to, _)) => {
       let marker = format!(
         "<comment_id>{}</comment_id>",
         crypto::hash_key(&reply_to.to_string())
@@ -117,6 +120,13 @@ pub async fn main(
       .map(|comment| comment.id)
     }
     None => None,
+  };
+
+  // A reply without a thread to sit in is posted top-level, where it needs the
+  // full prompt for the agent to know which code it refers to.
+  let multica_comment = match (&parent_id, reply) {
+    (Some(_), Some((_, body))) => body,
+    _ => prompt,
   };
 
   multica::add_issue_comment(
