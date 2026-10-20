@@ -2,12 +2,14 @@ mod cmd;
 mod context;
 mod platform;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
 use clap::Subcommand;
 
 use crate::context::AppContext;
+use crate::platform::kv::KvStore;
 
 #[derive(Debug, Parser)]
 struct Command {
@@ -51,6 +53,16 @@ struct CommandConfig {
   /// Users that the triggers will respond to
   #[clap(long, env = "USER_REPLY_LIST")]
   pub user_reply_list: String,
+
+  #[clap(long, env = "MULTICA_TRIGGER_DB", default_value_os_t = default_db_path())]
+  pub multica_trigger_db: PathBuf,
+}
+
+fn default_db_path() -> PathBuf {
+  std::env::current_exe()
+    .ok()
+    .and_then(|exe| exe.parent().map(|dir| dir.join("data.db")))
+    .unwrap_or_else(|| PathBuf::from("data.db"))
 }
 
 #[derive(Debug, Subcommand)]
@@ -80,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
   let github = octocrab::Octocrab::builder()
     .personal_token(cmd.config.github_token.clone())
     .build()?;
+  let state = KvStore::new(&cmd.config.multica_trigger_db).await?;
 
   let ctx = AppContext {
     multica_url: cmd.config.multica_url,
@@ -91,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
     github_issue_label: cmd.config.label,
     github_user_reply_list: cmd.config.user_reply_list,
     github: Arc::new(github),
+    state: Arc::new(state),
   };
 
   match cmd.command {
