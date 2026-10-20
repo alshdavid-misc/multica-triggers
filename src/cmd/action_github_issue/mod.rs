@@ -57,7 +57,7 @@ pub async fn main(
       title: &title,
       description: &description,
       project_id: multica_project_id.as_deref(),
-      agent: &multica_agent,
+      agent: Some(&multica_agent),
       metadata,
     },
   )

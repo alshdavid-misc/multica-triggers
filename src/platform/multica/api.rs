@@ -26,7 +26,7 @@ pub struct CreateIssue<'a> {
   pub title: &'a str,
   pub description: &'a str,
   pub project_id: Option<&'a str>,
-  pub agent: &'a str,
+  pub agent: Option<&'a str>,
   pub metadata: HashMap<String, String>,
 }
 
@@ -57,14 +57,17 @@ pub async fn create_issue(
   workspace_id: &str,
   issue: CreateIssue<'_>,
 ) -> anyhow::Result<CreateIssueOutcome> {
-  let body = serde_json::json!({
+  let mut body = serde_json::json!({
     "title": issue.title,
     "description": issue.description,
     "project_id": issue.project_id,
-    "assignee_type": "agent",
-    "assignee_id": issue.agent,
     "status": IssueStatus::Backlog,
   });
+
+  if let Some(agent) = issue.agent {
+    body["assignee_type"] = "agent".into();
+    body["assignee_id"] = agent.into();
+  }
 
   let response = Client::new()
     .post(format!("{base_url}/api/issues"))
