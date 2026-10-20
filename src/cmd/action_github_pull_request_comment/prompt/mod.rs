@@ -54,7 +54,6 @@ pub fn prompt_pull_request_inline_comment(comment: &PullRequestComment) -> anyho
   Ok(TEMPLATES.render(
     "inline_comment",
     &json!({
-      "comment_id": crypto::hash_key(&comment.id.to_string()),
       "path": comment.path,
       "line": comment.line,
       "start_line": comment.start_line,

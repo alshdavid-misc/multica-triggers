@@ -162,30 +162,6 @@ async fn get_issue_status(
   Ok(data.status)
 }
 
-pub async fn list_root_comments(
-  base_url: &str,
-  token: &str,
-  workspace_id: &str,
-  issue_id: &str,
-) -> anyhow::Result<Vec<MulticaComment>> {
-  let response = Client::new()
-    .get(format!("{base_url}/api/issues/{issue_id}/comments"))
-    .query(&[("roots_only", "true")])
-    .header("Authorization", format!("Bearer {token}"))
-    .header("X-Workspace-ID", workspace_id)
-    .send()
-    .await?;
-
-  let status = response.status();
-
-  if !status.is_success() {
-    let text = response.text().await.unwrap_or_default();
-    anyhow::bail!("Multica API error {status} listing comments on {issue_id}: {text}");
-  }
-
-  Ok(response.json().await?)
-}
-
 /// Add a top-level comment and make sure the assigned agent picks it up.
 ///
 /// The issue is moved to `todo` before commenting so the agent never reads a

@@ -12,5 +12,4 @@ pub struct MulticaIssue {
 #[derive(Debug, Deserialize)]
 pub struct MulticaComment {
   pub id: String,
-  pub content: String,
 }

@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use crate::CommandConfig;
 use crate::context::AppContext;
-use crate::platform::crypto;
 use crate::platform::github;
 use crate::platform::multica;
 use crate::platform::multica::CreateIssue;
@@ -105,23 +104,13 @@ pub async fn main(
     }
   };
 
+  let thread_key = format!(
+    "github/{repo}/pulls/{pull_request}/comments/{}",
+    reply.as_ref().map_or(comment_id, |(reply_to, _)| *reply_to)
+  );
+
   let parent_id = match &reply {
-    Some((reply_to, _)) => {
-      let marker = format!(
-        "<comment_id>{}</comment_id>",
-        crypto::hash_key(&reply_to.to_string())
-      );
-      multica::list_root_comments(
-        &multica_url,
-        &multica_token,
-        &multica_workspace_id,
-        &multica_issue.id,
-      )
-      .await?
-      .into_iter()
-      .find(|comment| comment.content.contains(&marker))
-      .map(|comment| comment.id)
-    }
+    Some(_) => state.get::<String>(&thread_key).await?,
     None => None,
   };
 
@@ -132,7 +121,7 @@ pub async fn main(
     _ => prompt,
   };
 
-  multica::add_issue_comment(
+  let posted = multica::add_issue_comment(
     &multica_url,
     &multica_token,
     &multica_workspace_id,
@@ -141,6 +130,10 @@ pub async fn main(
     parent_id.as_deref(),
   )
   .await?;
+
+  if matches!(kind, PullRequestCommentKind::Inline) && parent_id.is_none() {
+    state.set(&thread_key, &posted.id).await?;
+  }
 
   // let reference = format!("{}/pulls/{}", args.repo, args.pull_request);
   // let key = crypto::hash_key(&reference);
