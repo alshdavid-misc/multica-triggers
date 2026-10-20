@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -21,7 +22,7 @@ impl KvStore {
     let pool = SqlitePoolOptions::new().connect_with(options).await?;
 
     sqlx::query(
-      "CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL, last_accessed INTEGER NOT NULL)",
     )
     .execute(&pool)
     .await?;
@@ -33,10 +34,11 @@ impl KvStore {
     &self,
     key: &str,
   ) -> anyhow::Result<Option<D>> {
-    let value: Option<String> = sqlx::query_scalar("SELECT value FROM kv WHERE key = ?")
-      .bind(key)
-      .fetch_optional(&self.pool)
-      .await?;
+    let value: Option<String> =
+      sqlx::query_scalar("UPDATE kv SET last_accessed = unixepoch() WHERE key = ? RETURNING value")
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
 
     match value {
       Some(value) => Ok(Some(serde_json::from_str(&value)?)),
@@ -52,7 +54,7 @@ impl KvStore {
     let value = serde_json::to_string(value)?;
 
     let result = sqlx::query(
-      "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      "INSERT INTO kv (key, value, last_accessed) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, last_accessed = excluded.last_accessed",
     )
     .bind(key)
     .bind(value)
@@ -72,5 +74,17 @@ impl KvStore {
       .await?;
 
     Ok(result.rows_affected() > 0)
+  }
+
+  pub async fn collect_garbage(
+    &self,
+    older_than: Duration,
+  ) -> anyhow::Result<u64> {
+    let result = sqlx::query("DELETE FROM kv WHERE last_accessed < unixepoch() - ?")
+      .bind(i64::try_from(older_than.as_secs())?)
+      .execute(&self.pool)
+      .await?;
+
+    Ok(result.rows_affected())
   }
 }

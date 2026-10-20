@@ -89,10 +89,12 @@ enum Commands {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
   let cmd = Command::parse();
+
   let github = octocrab::Octocrab::builder()
     .personal_token(cmd.config.github_token.clone())
     .build()?;
-  let state = KvStore::new(&cmd.config.multica_trigger_db).await?;
+
+  let state = Arc::new(KvStore::new(&cmd.config.multica_trigger_db).await?);
 
   let ctx = AppContext {
     multica_url: cmd.config.multica_url,
@@ -104,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
     github_issue_label: cmd.config.label,
     github_user_reply_list: cmd.config.user_reply_list,
     github: Arc::new(github),
-    state: Arc::new(state),
+    state: state,
   };
 
   match cmd.command {
