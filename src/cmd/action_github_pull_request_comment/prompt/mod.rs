@@ -3,8 +3,6 @@ use std::sync::LazyLock;
 use handlebars::Handlebars;
 use handlebars::handlebars_helper;
 use octocrab::models::pulls::Comment as PullRequestComment;
-use octocrab::models::pulls::Review;
-use octocrab::models::pulls::ReviewState;
 use serde_json::json;
 
 static TEMPLATES: LazyLock<Handlebars<'static>> = LazyLock::new(|| {
@@ -23,7 +21,6 @@ static TEMPLATES: LazyLock<Handlebars<'static>> = LazyLock::new(|| {
       "inline_comment",
       include_str!("./prompt_pull_request_inline_comment.hbs"),
     ),
-    ("review", include_str!("./prompt_pull_request_review.hbs")),
   ] {
     handlebars
       .register_template_string(name, template)
@@ -47,14 +44,8 @@ pub fn prompt_top_level(
   Ok(TEMPLATES.render("top_level", &json!({ "repo": repo, "branch": branch }))?)
 }
 
-pub fn prompt_pull_request_general_comment(
-  commit_sha: &str,
-  body: &str,
-) -> anyhow::Result<String> {
-  Ok(TEMPLATES.render(
-    "general_comment",
-    &json!({ "commit_sha": commit_sha, "body": body }),
-  )?)
+pub fn prompt_pull_request_general_comment(body: &str) -> anyhow::Result<String> {
+  Ok(TEMPLATES.render("general_comment", &json!({ "body": body }))?)
 }
 
 pub fn prompt_pull_request_inline_comment(comment: &PullRequestComment) -> anyhow::Result<String> {
@@ -70,26 +61,6 @@ pub fn prompt_pull_request_inline_comment(comment: &PullRequestComment) -> anyho
       "thread_id": comment.in_reply_to_id,
       "diff_hunk": comment.diff_hunk,
       "body": comment.body,
-    }),
-  )?)
-}
-
-pub fn prompt_pull_request_review(review: &Review) -> anyhow::Result<String> {
-  let review_state_label = match review.state {
-    Some(ReviewState::Approved) => "Approved",
-    Some(ReviewState::ChangesRequested) => "Changes requested",
-    Some(ReviewState::Commented) => "Commented",
-    Some(ReviewState::Dismissed) => "Dismissed",
-    Some(ReviewState::Pending) => "Pending",
-    _ => "Unknown",
-  };
-
-  Ok(TEMPLATES.render(
-    "review",
-    &json!({
-      "review_state_label": review_state_label,
-      "commit_sha": review.commit_id.as_deref().unwrap_or_default(),
-      "body": review.body.as_deref().unwrap_or_default(),
     }),
   )?)
 }

@@ -72,8 +72,6 @@ pub async fn main(
   )
   .await?;
 
-  
-
   // let reference = format!("{}/pulls/{}", args.repo, args.pull_request);
   // let key = crypto::hash_key(&reference);
 
