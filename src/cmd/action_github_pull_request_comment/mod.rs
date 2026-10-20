@@ -217,7 +217,7 @@ async fn create_multica_ticket(
     multica_token,
     multica_workspace_id,
     CreateIssue {
-      title: &format!("Review feedback: {branch} - {}", Uuid::new_v4()),
+      title: &format!("Review feedback: {}", Uuid::new_v4()),
       description: &prompt::prompt_top_level(repo, branch)?,
       project_id: multica_project_id,
       agent: None,
