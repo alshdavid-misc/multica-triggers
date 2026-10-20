@@ -5,6 +5,8 @@ use handlebars::handlebars_helper;
 use octocrab::models::pulls::Comment as PullRequestComment;
 use serde_json::json;
 
+use crate::platform::crypto;
+
 static TEMPLATES: LazyLock<Handlebars<'static>> = LazyLock::new(|| {
   let mut handlebars = Handlebars::new();
   handlebars.set_strict_mode(true);
@@ -52,13 +54,16 @@ pub fn prompt_pull_request_inline_comment(comment: &PullRequestComment) -> anyho
   Ok(TEMPLATES.render(
     "inline_comment",
     &json!({
+      "comment_id": crypto::hash_key(&comment.id.to_string()),
       "path": comment.path,
       "line": comment.line,
       "start_line": comment.start_line,
       "original_line": comment.original_line,
       "commit_sha": comment.original_commit_id,
       "is_reply": comment.in_reply_to_id.is_some(),
-      "thread_id": comment.in_reply_to_id,
+      "thread_id": comment
+        .in_reply_to_id
+        .map(|id| crypto::hash_key(&id.to_string())),
       "diff_hunk": comment.diff_hunk,
       "body": comment.body,
     }),

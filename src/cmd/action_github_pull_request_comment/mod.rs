@@ -61,19 +61,24 @@ pub async fn main(
 ) -> anyhow::Result<()> {
   println!("Comment left");
 
-  let multica_comment = match kind {
+  let rendered = match kind {
     PullRequestCommentKind::General => github::get_issue_comment(&github, &repo, comment_id)
       .await
       .and_then(|comment| {
-        prompt::prompt_pull_request_general_comment(comment.body.as_deref().unwrap_or_default())
+        let prompt =
+          prompt::prompt_pull_request_general_comment(comment.body.as_deref().unwrap_or_default())?;
+        Ok((prompt, None))
       }),
     PullRequestCommentKind::Inline => github::get_pr_comment(&github, &repo, comment_id)
       .await
-      .and_then(|comment| prompt::prompt_pull_request_inline_comment(&comment)),
+      .and_then(|comment| {
+        let prompt = prompt::prompt_pull_request_inline_comment(&comment)?;
+        Ok((prompt, comment.in_reply_to_id.map(|id| id.into_inner())))
+      }),
   };
 
-  let multica_comment = match multica_comment {
-    Ok(comment) => comment,
+  let (multica_comment, reply_to) = match rendered {
+    Ok(rendered) => rendered,
     Err(err) => {
       eprintln!("{:?}", err);
       return Ok(());
@@ -94,12 +99,33 @@ pub async fn main(
   )
   .await?;
 
+  let parent_id = match reply_to {
+    Some(reply_to) => {
+      let marker = format!(
+        "<comment_id>{}</comment_id>",
+        crypto::hash_key(&reply_to.to_string())
+      );
+      multica::list_root_comments(
+        &multica_url,
+        &multica_token,
+        &multica_workspace_id,
+        &multica_issue.id,
+      )
+      .await?
+      .into_iter()
+      .find(|comment| comment.content.contains(&marker))
+      .map(|comment| comment.id)
+    }
+    None => None,
+  };
+
   multica::add_issue_comment(
     &multica_url,
     &multica_token,
     &multica_workspace_id,
     &multica_issue.id,
     &multica_comment,
+    parent_id.as_deref(),
   )
   .await?;
 
