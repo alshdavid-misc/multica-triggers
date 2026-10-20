@@ -41,7 +41,7 @@ pub async fn main(
   workers::schedule(
     ctx.clone(),
     workers::db_collect_garbage,
-    Duration::from_hours(48),
+    Duration::from_hours(1),
   );
 
   let mut app = Router::new(HandlerContext {
