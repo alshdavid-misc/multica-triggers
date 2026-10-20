@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use octocrab::models::issues::Issue;
 
 use crate::context::AppContext;
@@ -32,6 +30,7 @@ pub async fn main(
     multica_project_id,
     multica_agent,
     github_issue_label: label,
+    state,
     ..
   }: AppContext,
   args: ActionGithubIssueCommand,
@@ -40,14 +39,6 @@ pub async fn main(
   let reference = format!("{}#{}", args.repo, issue.number);
   let title = format!("[{}] {}", reference, issue.title);
   let description = build_description(&issue, &args.repo, &label);
-
-  let mut metadata = HashMap::new();
-  metadata.insert(
-    "sentinel".to_string(),
-    format!("{}/{}", args.repo, args.issue),
-  );
-  metadata.insert("github_repo".to_string(), args.repo.clone());
-  metadata.insert("github_issue".to_string(), args.issue.to_string());
 
   let outcome = multica::create_issue(
     &multica_url,
@@ -58,10 +49,16 @@ pub async fn main(
       description: &description,
       project_id: multica_project_id.as_deref(),
       agent: Some(&multica_agent),
-      metadata,
     },
   )
   .await?;
+
+  state
+    .set(
+      &format!("github/{}/issues/{}", args.repo, args.issue),
+      outcome.issue(),
+    )
+    .await?;
 
   match &outcome {
     CreateIssueOutcome::Created(multica) => {

@@ -1,7 +1,5 @@
 mod prompt;
 
-use std::collections::HashMap;
-
 use uuid::Uuid;
 
 use crate::CommandConfig;
@@ -48,6 +46,7 @@ pub async fn main(
     multica_token,
     multica_workspace_id,
     multica_project_id,
+    state,
     ..
   }: AppContext,
   ActionGithubPullRequestCommentCommand {
@@ -87,18 +86,24 @@ pub async fn main(
   };
 
   let github_pull_request = github::get_pull_request(&github, &repo, pull_request).await?;
-  let key = crypto::hash_key(&format!("{repo}/pulls/{pull_request}"));
+  let key = format!("github/{repo}/pulls/{pull_request}");
 
-  let multica_issue = create_or_get_multica_ticket(
-    &key,
-    &repo,
-    &github_pull_request.head.ref_field,
-    &multica_url,
-    &multica_token,
-    &multica_workspace_id,
-    multica_project_id.as_deref(),
-  )
-  .await?;
+  let multica_issue = match state.get::<MulticaIssue>(&key).await? {
+    Some(issue) => issue,
+    None => {
+      let issue = create_multica_ticket(
+        &repo,
+        &github_pull_request.head.ref_field,
+        &multica_url,
+        &multica_token,
+        &multica_workspace_id,
+        multica_project_id.as_deref(),
+      )
+      .await?;
+      state.set(&key, &issue).await?;
+      issue
+    }
+  };
 
   let parent_id = match &reply {
     Some((reply_to, _)) => {
@@ -206,8 +211,7 @@ pub async fn main(
   Ok(())
 }
 
-async fn create_or_get_multica_ticket(
-  key: &str,
+async fn create_multica_ticket(
   repo: &str,
   branch: &str,
   multica_url: &str,
@@ -215,17 +219,6 @@ async fn create_or_get_multica_ticket(
   multica_workspace_id: &str,
   multica_project_id: Option<&str>,
 ) -> anyhow::Result<MulticaIssue> {
-  let mut metadata = HashMap::<String, String>::new();
-  metadata.insert(key.to_string(), key.to_string());
-
-  let found =
-    multica::find_issues_by_metadata(multica_url, multica_token, multica_workspace_id, &metadata)
-      .await?;
-
-  if let Some(issue) = found.into_iter().next() {
-    return Ok(issue);
-  }
-
   let outcome = multica::create_issue(
     multica_url,
     multica_token,
@@ -235,7 +228,6 @@ async fn create_or_get_multica_ticket(
       description: &prompt::prompt_top_level(repo, branch)?,
       project_id: multica_project_id,
       agent: None,
-      metadata,
     },
   )
   .await?;
