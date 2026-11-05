@@ -1,7 +1,7 @@
 use crate::context::AppContext;
 
 #[derive(Debug, clap::Parser)]
-pub struct ActionGithubPullRequestRaisedCommand {
+pub struct ActionGithubPullRequestSyncCommand {
   /// GitHub repository slug (`owner/name`)
   #[clap(long)]
   pub repo: String,
@@ -13,7 +13,7 @@ pub struct ActionGithubPullRequestRaisedCommand {
 
 pub async fn main(
   _ctx: AppContext,
-  _args: ActionGithubPullRequestRaisedCommand,
+  _args: ActionGithubPullRequestSyncCommand,
 ) -> anyhow::Result<()> {
   Ok(())
 }

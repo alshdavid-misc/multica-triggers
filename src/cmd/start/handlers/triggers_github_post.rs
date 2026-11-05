@@ -50,7 +50,7 @@ pub async fn triggers_github_post(
       | PullRequestWebhookEventAction::Synchronize
       | PullRequestWebhookEventAction::Reopened
       | PullRequestWebhookEventAction::ReadyForReview => {
-        tokio::spawn(on_pr_sync(repository, payload));
+        tokio::spawn(on_pr_sync(ctx, repository, payload));
       }
       _ => {}
     },
@@ -143,9 +143,23 @@ async fn on_pr_comment_deleted(
 }
 
 async fn on_pr_sync(
-  _repository: Option<Repository>,
-  _payload: Box<PullRequestWebhookEventPayload>,
+  ctx: AppContext,
+  repository: Option<Repository>,
+  payload: Box<PullRequestWebhookEventPayload>,
 ) -> anyhow::Result<()> {
-  println!("on_pr_sync");
-  Ok(())
+  use crate::cmd::action_github_pull_request_sync::ActionGithubPullRequestSyncCommand;
+  use crate::cmd::action_github_pull_request_sync::main;
+
+  let repo = repository
+    .and_then(|r| r.full_name)
+    .ok_or_else(|| anyhow::anyhow!("pull request event has no repository"))?;
+
+  main(
+    ctx,
+    ActionGithubPullRequestSyncCommand {
+      repo,
+      pull_request: payload.number,
+    },
+  )
+  .await
 }
