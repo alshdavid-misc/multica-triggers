@@ -13,6 +13,7 @@ use uhttp::StatusCode;
 
 use super::super::handler_context::HandlerContext;
 use crate::context::AppContext;
+use crate::platform::crypto;
 
 pub async fn triggers_github_post(
   mut req: uhttp::Request,
@@ -29,7 +30,20 @@ pub async fn triggers_github_post(
     return res.status(StatusCode::BAD_REQUEST).body(vec![]);
   };
 
+  let Some(signature) = req
+    .headers
+    .get("x-hub-signature-256")
+    .and_then(|v| v.to_str().ok())
+    .map(str::to_owned)
+  else {
+    return res.status(StatusCode::UNAUTHORIZED).body(vec![]);
+  };
+
   let body = uhttp::body::bytes(&mut req.body).await?;
+
+  if !crypto::verify_github_signature(&ctx.github_webhook_secret, &body, &signature) {
+    return res.status(StatusCode::UNAUTHORIZED).body(vec![]);
+  }
 
   // let body = uhttp::body::json::<serde_json::Value>(&mut req.body).await?;
   // println!("{}", serde_json::to_string_pretty(&body)?);

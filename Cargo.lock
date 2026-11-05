@@ -1480,6 +1480,8 @@ dependencies = [
  "anyhow",
  "clap",
  "handlebars",
+ "hex",
+ "hmac",
  "humantime",
  "octocrab",
  "reqwest 0.12.28",
