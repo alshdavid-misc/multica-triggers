@@ -12,5 +12,6 @@ pub struct AppContext {
   pub github_webhook_secret: String,
   pub github_user_reply_list: Option<Vec<u64>>,
   pub github_machine_user_id: u64,
+  pub multica_pull_request_sync_webhook: Option<String>,
   pub github: Arc<Octocrab>,
 }
