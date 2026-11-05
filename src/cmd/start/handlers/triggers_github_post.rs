@@ -154,6 +154,12 @@ async fn on_pr_sync(
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request event has no repository"))?;
 
+  /*
+    if the user_reply_list is set, do nothing if the event was raised by a user not on the list, return
+
+    if the user ID is the machine user's ID, return
+  */
+
   main(
     ctx,
     ActionGithubPullRequestSyncCommand {

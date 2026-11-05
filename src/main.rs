@@ -44,9 +44,9 @@ struct CommandConfig {
   #[clap(long, env = "GITHUB_TOKEN", hide_env_values = true)]
   pub github_token: String,
 
-  /// Comma separated GitHub logins the triggers will respond to (everyone when omitted)
-  #[clap(long, env = "USER_REPLY_LIST", value_delimiter = ',')]
-  pub user_reply_list: Option<Vec<String>>,
+  /// Comma separated numeric IDs of GitHub users the triggers will respond to (everyone when omitted)
+  #[clap(long, env = "USER_REPLY_LIST", value_delimiter = ',', value_parser = parse_user_id)]
+  pub user_reply_list: Option<Vec<u64>>,
 
   /// Numeric ID of the machine GitHub user whose mentions create Multica issues
   #[clap(long, env = "GITHUB_MACHINE_USER_ID")]
@@ -54,6 +54,10 @@ struct CommandConfig {
 
   #[clap(long, env = "MULTICA_PULL_REQUEST_SYNC_WEBHOOK")]
   pub multica_pull_request_sync_webhook: Option<String>,
+}
+
+fn parse_user_id(value: &str) -> Result<u64, std::num::ParseIntError> {
+  value.trim().parse()
 }
 
 #[derive(Debug, Subcommand)]
@@ -98,13 +102,7 @@ async fn main() -> anyhow::Result<()> {
     multica_project_id: cmd.config.multica_project_id,
     multica_agent: cmd.config.multica_agent,
     github_token: cmd.config.github_token,
-    github_user_reply_list: cmd.config.user_reply_list.map(|users| {
-      users
-        .iter()
-        .map(|user| user.trim().to_owned())
-        .filter(|user| !user.is_empty())
-        .collect()
-    }),
+    github_user_reply_list: cmd.config.user_reply_list,
     github_machine_user_id: cmd.config.github_machine_user_id,
     github: Arc::new(github),
   };
