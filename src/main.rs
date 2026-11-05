@@ -85,6 +85,12 @@ enum Commands {
     cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand,
   ),
 
+  /// Handle a newly raised GitHub pull request
+  #[clap(name = "action-github-pull-request-raised")]
+  ActionGithubPullRequestRaised(
+    cmd::action_github_pull_request_raised::ActionGithubPullRequestRaisedCommand,
+  ),
+
   /// Start the service
   #[clap(name = "start")]
   Start(cmd::start::StartCommand),
@@ -125,6 +131,9 @@ async fn main() -> anyhow::Result<()> {
     Commands::ActionGithubIssue(args) => cmd::action_github_issue::main(ctx, args).await,
     Commands::ActionGithubPullRequestComment(args) => {
       cmd::action_github_pull_request_comment::main(ctx, args).await
+    }
+    Commands::ActionGithubPullRequestRaised(args) => {
+      cmd::action_github_pull_request_raised::main(ctx, args).await
     }
     Commands::Start(args) => cmd::start::main(ctx, args).await,
   }
