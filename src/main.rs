@@ -44,10 +44,6 @@ struct CommandConfig {
   #[clap(long, env = "GITHUB_TOKEN", hide_env_values = true)]
   pub github_token: String,
 
-  /// Label applied to the GitHub issue once it has been imported
-  #[clap(long, env = "GITHUB_ISSUE_LABEL")]
-  pub label: String,
-
   /// Comma separated GitHub logins the triggers will respond to (everyone when omitted)
   #[clap(long, env = "USER_REPLY_LIST", value_delimiter = ',')]
   pub user_reply_list: Option<Vec<String>>,
@@ -99,7 +95,6 @@ async fn main() -> anyhow::Result<()> {
     multica_project_id: cmd.config.multica_project_id,
     multica_agent: cmd.config.multica_agent,
     github_token: cmd.config.github_token,
-    github_issue_label: cmd.config.label,
     github_user_reply_list: cmd.config.user_reply_list.map(|users| {
       users
         .iter()
