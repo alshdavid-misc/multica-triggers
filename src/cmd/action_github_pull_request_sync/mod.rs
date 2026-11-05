@@ -47,5 +47,7 @@ pub async fn main(
       pull_request_url: pull_request_url.as_str(),
     },
   )
-  .await
+  .await?;
+
+  Ok(())
 }

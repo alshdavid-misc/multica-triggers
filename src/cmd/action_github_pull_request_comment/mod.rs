@@ -1,6 +1,8 @@
+use octocrab::models::reactions::ReactionContent;
 use serde::Serialize;
 
 use crate::context::AppContext;
+use crate::context::PendingRun;
 use crate::platform::github;
 use crate::platform::multica;
 
@@ -40,6 +42,7 @@ pub async fn main(
   AppContext {
     github,
     multica_pull_request_comment_webhook,
+    pending_runs,
     ..
   }: AppContext,
   ActionGithubPullRequestCommentCommand {
@@ -76,7 +79,7 @@ pub async fn main(
     )
   };
 
-  multica::send_webhook(
+  let response = multica::send_webhook(
     &webhook,
     &PullRequestComment {
       repo: &repo,
@@ -89,5 +92,43 @@ pub async fn main(
       line,
     },
   )
-  .await
+  .await?;
+
+  if response.status != "accepted" {
+    eprintln!(
+      "pull request comment webhook not accepted ({}) for {repo}#{pull_request}",
+      response.status
+    );
+    return Ok(());
+  }
+
+  let comment_kind = if review_comment {
+    github::CommentKind::Review
+  } else {
+    github::CommentKind::Issue
+  };
+
+  let reaction_id = github::add_comment_reaction(
+    &github,
+    &repo,
+    comment_kind,
+    comment_id,
+    ReactionContent::Eyes,
+  )
+  .await?;
+
+  if let (Some(run_id), Some(autopilot_id)) = (response.run_id, response.autopilot_id) {
+    pending_runs.lock().unwrap().insert(
+      run_id,
+      PendingRun {
+        autopilot_id,
+        repo,
+        comment_kind,
+        comment_id,
+        reaction_id,
+      },
+    );
+  }
+
+  Ok(())
 }

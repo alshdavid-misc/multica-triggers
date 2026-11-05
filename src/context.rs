@@ -1,6 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use octocrab::Octocrab;
+
+use crate::platform::github::CommentKind;
 
 #[derive(Clone)]
 pub struct AppContext {
@@ -15,4 +19,15 @@ pub struct AppContext {
   pub multica_pull_request_comment_webhook: Option<String>,
   pub multica_pull_request_sync_webhook: Option<String>,
   pub github: Arc<Octocrab>,
+  /// Autopilot runs, keyed by run id, whose comment still carries a 👀 reaction.
+  pub pending_runs: Arc<Mutex<HashMap<String, PendingRun>>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingRun {
+  pub autopilot_id: String,
+  pub repo: String,
+  pub comment_kind: CommentKind,
+  pub comment_id: u64,
+  pub reaction_id: u64,
 }

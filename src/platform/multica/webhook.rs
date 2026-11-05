@@ -1,11 +1,20 @@
 use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
+use serde::Deserialize;
 use serde::Serialize;
+
+#[derive(Debug, Default, Deserialize)]
+pub struct WebhookResponse {
+  #[serde(default)]
+  pub status: String,
+  pub run_id: Option<String>,
+  pub autopilot_id: Option<String>,
+}
 
 pub async fn send_webhook<T: Serialize>(
   webhook: &str,
   payload: &T,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<WebhookResponse> {
   let body = serde_json::to_string_pretty(payload)?;
 
   let response = Client::new()
@@ -17,11 +26,12 @@ pub async fn send_webhook<T: Serialize>(
     .inspect_err(|error| eprintln!("webhook request failed {webhook}: {error:?}"))?;
 
   let status = response.status();
+  let text = response.text().await.unwrap_or_default();
+
   if !status.is_success() {
-    let text = response.text().await.unwrap_or_default();
     eprintln!("webhook error {status} {webhook}: {text}");
     anyhow::bail!("webhook error {status}: {text}");
   }
 
-  Ok(())
+  Ok(serde_json::from_str(&text).unwrap_or_default())
 }

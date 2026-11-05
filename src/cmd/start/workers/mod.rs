@@ -1,9 +1,9 @@
-mod poll_multica_issues;
+mod poll_autopilot_runs;
 
 use std::future::Future;
 use std::time::Duration;
 
-pub use self::poll_multica_issues::*;
+pub use self::poll_autopilot_runs::*;
 use crate::context::AppContext;
 
 pub fn schedule<F, Fut>(

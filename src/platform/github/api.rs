@@ -1,5 +1,6 @@
 use octocrab::Octocrab;
 use octocrab::models::CommentId;
+use octocrab::models::ReactionId;
 use octocrab::models::UserId;
 use octocrab::models::issues::Comment;
 use octocrab::models::issues::Issue;
@@ -54,17 +55,59 @@ pub async fn get_pr_comment(
   )
 }
 
-pub async fn add_issue_comment_reaction(
+#[derive(Debug, Clone, Copy)]
+pub enum CommentKind {
+  Issue,
+  Review,
+}
+
+pub async fn add_comment_reaction(
   client: &Octocrab,
   repo: &str,
+  kind: CommentKind,
   comment_id: u64,
   content: ReactionContent,
+) -> anyhow::Result<u64> {
+  let (owner, name) = split_repo(repo)?;
+  let reaction = match kind {
+    CommentKind::Issue => {
+      client
+        .issues(owner, name)
+        .create_comment_reaction(CommentId(comment_id), content)
+        .await?
+    }
+    CommentKind::Review => {
+      client
+        .pulls(owner, name)
+        .create_comment_reaction(CommentId(comment_id), content)
+        .await?
+    }
+  };
+  Ok(reaction.id.into_inner())
+}
+
+pub async fn remove_comment_reaction(
+  client: &Octocrab,
+  repo: &str,
+  kind: CommentKind,
+  comment_id: u64,
+  reaction_id: u64,
 ) -> anyhow::Result<()> {
   let (owner, name) = split_repo(repo)?;
-  client
-    .issues(owner, name)
-    .create_comment_reaction(CommentId(comment_id), content)
-    .await?;
+  match kind {
+    CommentKind::Issue => {
+      client
+        .issues(owner, name)
+        .delete_comment_reaction(CommentId(comment_id), ReactionId(reaction_id))
+        .await?
+    }
+    CommentKind::Review => {
+      client
+        .pulls(owner, name)
+        .delete_comment_reaction(CommentId(comment_id), ReactionId(reaction_id))
+        .await?
+    }
+  };
   Ok(())
 }
 

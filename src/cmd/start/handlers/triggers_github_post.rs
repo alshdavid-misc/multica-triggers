@@ -132,17 +132,14 @@ async fn on_pr_comment(
   use crate::cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand;
   use crate::cmd::action_github_pull_request_comment::main;
 
-  println!("1");
   let repo = repository
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request comment event has no repository"))?;
-  println!("2");
 
   let body = payload.comment.body.as_deref().unwrap_or_default();
   if !mentions_machine_user(&ctx, body).await? {
     return Ok(());
   }
-  println!("3");
 
   main(
     ctx,

@@ -9,4 +9,5 @@ pub use self::api::create_issue;
 pub use self::api::*;
 pub use self::issue::MulticaComment;
 pub use self::issue::MulticaIssue;
+pub use self::webhook::WebhookResponse;
 pub use self::webhook::send_webhook;
