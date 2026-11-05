@@ -34,6 +34,7 @@ pub async fn main(
     multica_workspace_id,
     multica_project_id,
     github_machine_user_id,
+    github_user_reply_list,
     ..
   }: AppContext,
   ActionGithubPullRequestCommentCommand {
@@ -43,6 +44,19 @@ pub async fn main(
   }: ActionGithubPullRequestCommentCommand,
 ) -> anyhow::Result<()> {
   let comment = github::get_issue_comment(&github, &repo, comment_id).await?;
+
+  if comment.user.id.into_inner() == github_machine_user_id {
+    return Ok(());
+  }
+
+  if let Some(users) = &github_user_reply_list
+    && !users
+      .iter()
+      .any(|user| user.eq_ignore_ascii_case(&comment.user.login))
+  {
+    return Ok(());
+  }
+
   let body = comment.body.as_deref().unwrap_or_default();
 
   let login = github::get_user_login(&github, github_machine_user_id).await?;

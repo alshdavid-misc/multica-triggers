@@ -50,9 +50,9 @@ struct CommandConfig {
   #[clap(long, env = "GITHUB_ISSUE_LABEL")]
   pub label: String,
 
-  /// Users that the triggers will respond to
-  #[clap(long, env = "USER_REPLY_LIST")]
-  pub user_reply_list: String,
+  /// Comma separated GitHub logins the triggers will respond to (everyone when omitted)
+  #[clap(long, env = "USER_REPLY_LIST", value_delimiter = ',')]
+  pub user_reply_list: Option<Vec<String>>,
 
   /// Numeric ID of the machine GitHub user whose mentions create Multica issues
   #[clap(long, env = "GITHUB_MACHINE_USER_ID")]
@@ -108,7 +108,13 @@ async fn main() -> anyhow::Result<()> {
     multica_agent: cmd.config.multica_agent,
     github_token: cmd.config.github_token,
     github_issue_label: cmd.config.label,
-    github_user_reply_list: cmd.config.user_reply_list,
+    github_user_reply_list: cmd.config.user_reply_list.map(|users| {
+      users
+        .iter()
+        .map(|user| user.trim().to_owned())
+        .filter(|user| !user.is_empty())
+        .collect()
+    }),
     github_machine_user_id: cmd.config.github_machine_user_id,
     github: Arc::new(github),
     state: state,
