@@ -213,6 +213,10 @@ async fn on_pr_comment(
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request comment event has no repository"))?;
 
+  if payload.comment.user.id.into_inner() == ctx.github_machine_user_id {
+    return Ok(());
+  }
+
   let body = payload.comment.body.as_deref().unwrap_or_default();
   if !mentions_machine_user(&ctx, body).await? {
     return Ok(());
@@ -241,6 +245,15 @@ async fn on_pr_review_comment(
   let repo = repository
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request review comment event has no repository"))?;
+
+  if payload
+    .comment
+    .user
+    .as_ref()
+    .is_some_and(|user| user.id.into_inner() == ctx.github_machine_user_id)
+  {
+    return Ok(());
+  }
 
   if !mentions_machine_user(&ctx, &payload.comment.body).await? {
     return Ok(());
