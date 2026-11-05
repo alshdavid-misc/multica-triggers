@@ -51,6 +51,9 @@ struct CommandConfig {
   /// Numeric ID of the machine GitHub user whose mentions create Multica issues
   #[clap(long, env = "GITHUB_MACHINE_USER_ID")]
   pub github_machine_user_id: u64,
+
+  #[clap(long, env = "MULTICA_PULL_REQUEST_SYNC_WEBHOOK")]
+  pub multica_pull_request_sync_webhook: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
