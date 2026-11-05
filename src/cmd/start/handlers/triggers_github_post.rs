@@ -14,6 +14,7 @@ use uhttp::StatusCode;
 use super::super::handler_context::HandlerContext;
 use crate::context::AppContext;
 use crate::platform::crypto;
+use crate::platform::github;
 
 pub async fn triggers_github_post(
   mut req: uhttp::Request,
@@ -123,6 +124,12 @@ async fn on_pr_comment(
   let repo = repository
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request comment event has no repository"))?;
+
+  let body = payload.comment.body.as_deref().unwrap_or_default();
+  let login = github::get_user_login(&ctx.github, ctx.github_machine_user_id).await?;
+  if !github::mentions(body, &login) {
+    return Ok(());
+  }
 
   main(
     ctx,
