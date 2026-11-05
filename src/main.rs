@@ -106,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
     github_webhook_secret: cmd.config.github_webhook_secret,
     github_user_reply_list: cmd.config.user_reply_list,
     github_machine_user_id: cmd.config.github_machine_user_id,
+    multica_pull_request_comment_webhook: cmd.config.multica_pull_request_comment_webhook,
     multica_pull_request_sync_webhook: cmd.config.multica_pull_request_sync_webhook,
     github: Arc::new(github),
   };

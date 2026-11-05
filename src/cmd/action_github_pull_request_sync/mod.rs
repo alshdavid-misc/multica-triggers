@@ -1,9 +1,8 @@
-use reqwest::Client;
-use reqwest::header::CONTENT_TYPE;
 use serde::Serialize;
 
 use crate::context::AppContext;
 use crate::platform::github;
+use crate::platform::multica;
 
 #[derive(Debug, clap::Parser)]
 pub struct ActionGithubPullRequestSyncCommand {
@@ -40,28 +39,13 @@ pub async fn main(
     .html_url
     .ok_or_else(|| anyhow::anyhow!("pull request {repo}#{pull_request} has no html url"))?;
 
-  let body = serde_json::to_string_pretty(&PullRequestSync {
-    repo: &repo,
-    pull_request,
-    pull_request_url: pull_request_url.as_str(),
-  })?;
-
-  let response = Client::new()
-    .post(&webhook)
-    .header(CONTENT_TYPE, "application/json")
-    .body(body)
-    .send()
-    .await
-    .inspect_err(|error| {
-      eprintln!("pull request sync webhook request failed {webhook}: {error:?}")
-    })?;
-
-  let status = response.status();
-  if !status.is_success() {
-    let text = response.text().await.unwrap_or_default();
-    eprintln!("pull request sync webhook error {status} {webhook}: {text}");
-    anyhow::bail!("pull request sync webhook error {status}: {text}");
-  }
-
-  Ok(())
+  multica::send_webhook(
+    &webhook,
+    &PullRequestSync {
+      repo: &repo,
+      pull_request,
+      pull_request_url: pull_request_url.as_str(),
+    },
+  )
+  .await
 }
