@@ -44,6 +44,9 @@ struct CommandConfig {
   #[clap(long, env = "GITHUB_TOKEN", hide_env_values = true)]
   pub github_token: String,
 
+  #[clap(long, env = "GITHUB_WEBHOOK_SECRET", hide_env_values = true)]
+  pub github_webhook_secret: String,
+
   /// Comma separated numeric IDs of GitHub users the triggers will respond to (everyone when omitted)
   #[clap(long, env = "USER_REPLY_LIST", value_delimiter = ',', value_parser = parse_user_id)]
   pub user_reply_list: Option<Vec<u64>>,
@@ -102,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
     multica_project_id: cmd.config.multica_project_id,
     multica_agent: cmd.config.multica_agent,
     github_token: cmd.config.github_token,
+    github_webhook_secret: cmd.config.github_webhook_secret,
     github_user_reply_list: cmd.config.user_reply_list,
     github_machine_user_id: cmd.config.github_machine_user_id,
     github: Arc::new(github),

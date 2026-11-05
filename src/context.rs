@@ -10,6 +10,7 @@ pub struct AppContext {
   pub multica_project_id: Option<String>,
   pub multica_agent: String,
   pub github_token: String,
+  pub github_webhook_secret: String,
   pub github_user_reply_list: Option<Vec<u64>>,
   pub github_machine_user_id: u64,
   pub github: Arc<Octocrab>,
