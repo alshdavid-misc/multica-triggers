@@ -1,10 +1,8 @@
-mod db_collect_garbage;
 mod poll_multica_issues;
 
 use std::future::Future;
 use std::time::Duration;
 
-pub use self::db_collect_garbage::*;
 pub use self::poll_multica_issues::*;
 use crate::context::AppContext;
 

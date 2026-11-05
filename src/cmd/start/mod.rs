@@ -2,7 +2,6 @@ mod handler_context;
 mod handlers;
 mod workers;
 use std::sync::Arc;
-use std::time::Duration;
 
 use uhttp::Router;
 use uhttp::Server;
@@ -37,12 +36,6 @@ pub async fn main(
 ) -> anyhow::Result<()> {
   let bind = format!("{}:{}", args.address, args.port);
   println!("Listening on: http://{}", bind);
-
-  workers::schedule(
-    ctx.clone(),
-    workers::db_collect_garbage,
-    Duration::from_hours(1),
-  );
 
   let mut app = Router::new(HandlerContext {
     ctx,

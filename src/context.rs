@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use octocrab::Octocrab;
 
-use crate::platform::kv::KvStore;
-
 #[derive(Clone)]
 pub struct AppContext {
   pub multica_url: String,
@@ -16,5 +14,4 @@ pub struct AppContext {
   pub github_user_reply_list: Option<Vec<String>>,
   pub github_machine_user_id: u64,
   pub github: Arc<Octocrab>,
-  pub state: Arc<KvStore>,
 }
