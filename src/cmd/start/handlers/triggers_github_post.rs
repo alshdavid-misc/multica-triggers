@@ -6,6 +6,8 @@ use octocrab::models::webhook_events::payload::IssueCommentWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssueCommentWebhookEventPayload;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventPayload;
+use octocrab::models::webhook_events::payload::PullRequestReviewCommentWebhookEventAction;
+use octocrab::models::webhook_events::payload::PullRequestReviewCommentWebhookEventPayload;
 use octocrab::models::webhook_events::payload::PullRequestWebhookEventAction;
 use octocrab::models::webhook_events::payload::PullRequestWebhookEventPayload;
 use uhttp::HandlerResponse;
@@ -50,6 +52,8 @@ pub async fn triggers_github_post(
   let repository = event.repository;
   let sender = event.sender;
 
+  // eprintln!("github event: {event_name}");
+
   match event.specific {
     WebhookEventPayload::Issues(payload) => match &payload.action {
       IssuesWebhookEventAction::Labeled => {
@@ -63,6 +67,13 @@ pub async fn triggers_github_post(
       | PullRequestWebhookEventAction::Reopened
       | PullRequestWebhookEventAction::ReadyForReview => {
         tokio::spawn(on_pr_sync(ctx, repository, sender, payload));
+      }
+      _ => {}
+    },
+
+    WebhookEventPayload::PullRequestReviewComment(payload) => match &payload.action {
+      PullRequestReviewCommentWebhookEventAction::Created => {
+        tokio::spawn(on_pr_review_comment(ctx, repository, payload));
       }
       _ => {}
     },
@@ -121,15 +132,17 @@ async fn on_pr_comment(
   use crate::cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand;
   use crate::cmd::action_github_pull_request_comment::main;
 
+  println!("1");
   let repo = repository
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request comment event has no repository"))?;
+  println!("2");
 
   let body = payload.comment.body.as_deref().unwrap_or_default();
-  let login = github::get_user_login(&ctx.github, ctx.github_machine_user_id).await?;
-  if !github::mentions(body, &login) {
+  if !mentions_machine_user(&ctx, body).await? {
     return Ok(());
   }
+  println!("3");
 
   main(
     ctx,
@@ -137,9 +150,46 @@ async fn on_pr_comment(
       repo,
       pull_request: payload.issue.number,
       comment_id: payload.comment.id.into_inner(),
+      review_comment: false,
     },
   )
   .await
+}
+
+async fn on_pr_review_comment(
+  ctx: AppContext,
+  repository: Option<Repository>,
+  payload: Box<PullRequestReviewCommentWebhookEventPayload>,
+) -> anyhow::Result<()> {
+  use crate::cmd::action_github_pull_request_comment::ActionGithubPullRequestCommentCommand;
+  use crate::cmd::action_github_pull_request_comment::main;
+
+  let repo = repository
+    .and_then(|r| r.full_name)
+    .ok_or_else(|| anyhow::anyhow!("pull request review comment event has no repository"))?;
+
+  if !mentions_machine_user(&ctx, &payload.comment.body).await? {
+    return Ok(());
+  }
+
+  main(
+    ctx,
+    ActionGithubPullRequestCommentCommand {
+      repo,
+      pull_request: payload.pull_request.number,
+      comment_id: payload.comment.id.into_inner(),
+      review_comment: true,
+    },
+  )
+  .await
+}
+
+async fn mentions_machine_user(
+  ctx: &AppContext,
+  body: &str,
+) -> anyhow::Result<bool> {
+  let login = github::get_user_login(&ctx.github, ctx.github_machine_user_id).await?;
+  Ok(github::mentions(body, &login))
 }
 
 async fn on_pr_comment_edited(

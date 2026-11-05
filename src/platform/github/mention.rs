@@ -5,7 +5,7 @@ pub fn mentions(
   body: &str,
   login: &str,
 ) -> bool {
-  let is_login_char = |c: char| c.is_ascii_alphanumeric() || c == '-';
+  let is_login_char = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
 
   body.match_indices('@').any(|(at, _)| {
     if body[..at].chars().next_back().is_some_and(is_login_char) {
@@ -25,11 +25,13 @@ mod tests {
   fn matches_mention() {
     assert!(mentions("@bot please fix", "bot"));
     assert!(mentions("hey @Bot, thoughts?", "bot"));
+    assert!(mentions("@sentinal-one_psgit asd", "sentinal-one_psgit"));
   }
 
   #[test]
   fn ignores_non_mentions() {
     assert!(!mentions("@bot-two please fix", "bot"));
+    assert!(!mentions("@bot_psgit please fix", "bot"));
     assert!(!mentions("mail me@bot.com", "bot"));
     assert!(!mentions("no mention here", "bot"));
   }

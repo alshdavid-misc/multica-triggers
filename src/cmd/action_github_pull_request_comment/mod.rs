@@ -14,9 +14,13 @@ pub struct ActionGithubPullRequestCommentCommand {
   #[clap(long)]
   pub pull_request: u64,
 
-  /// GitHub top-level pull request comment identifier
+  /// GitHub pull request comment identifier
   #[clap(long)]
   pub comment_id: u64,
+
+  /// Treat `comment_id` as a review comment left on a line of the diff
+  #[clap(long)]
+  pub review_comment: bool,
 }
 
 #[derive(Serialize)]
@@ -28,6 +32,8 @@ struct PullRequestComment<'a> {
   comment_url: &'a str,
   comment_author: &'a str,
   comment_body: &'a str,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  line: Option<u64>,
 }
 
 pub async fn main(
@@ -40,6 +46,7 @@ pub async fn main(
     repo,
     pull_request,
     comment_id,
+    review_comment,
   }: ActionGithubPullRequestCommentCommand,
 ) -> anyhow::Result<()> {
   let Some(webhook) = multica_pull_request_comment_webhook else {
@@ -51,7 +58,23 @@ pub async fn main(
     .html_url
     .ok_or_else(|| anyhow::anyhow!("pull request {repo}#{pull_request} has no html url"))?;
 
-  let comment = github::get_issue_comment(&github, &repo, comment_id).await?;
+  let (comment_url, comment_author, comment_body, line) = if review_comment {
+    let comment = github::get_pr_comment(&github, &repo, comment_id).await?;
+    (
+      comment.html_url,
+      comment.user.map(|user| user.login).unwrap_or_default(),
+      comment.body,
+      comment.line,
+    )
+  } else {
+    let comment = github::get_issue_comment(&github, &repo, comment_id).await?;
+    (
+      comment.html_url.to_string(),
+      comment.user.login,
+      comment.body.unwrap_or_default(),
+      None,
+    )
+  };
 
   multica::send_webhook(
     &webhook,
@@ -60,9 +83,10 @@ pub async fn main(
       pull_request,
       pull_request_url: pull_request_url.as_str(),
       comment_id,
-      comment_url: comment.html_url.as_str(),
-      comment_author: &comment.user.login,
-      comment_body: comment.body.as_deref().unwrap_or_default(),
+      comment_url: &comment_url,
+      comment_author: &comment_author,
+      comment_body: &comment_body,
+      line,
     },
   )
   .await
