@@ -59,28 +59,23 @@ pub async fn triggers_github_post(
   // eprintln!("github event: {event_name}");
 
   match event.specific {
-    WebhookEventPayload::Issues(payload) => match &payload.action {
-      IssuesWebhookEventAction::Opened => {
-        tokio::spawn(on_issue_opened(ctx, repository, sender, payload));
-      }
-      IssuesWebhookEventAction::Labeled => {
-        tokio::spawn(on_issue_labeled(repository, payload));
-      }
-      _ => {}
-    },
-    WebhookEventPayload::Discussion(payload) => match &payload.action {
-      DiscussionWebhookEventAction::Created => {
-        tokio::spawn(on_discussion_created(ctx, repository, sender, payload));
-      }
-      _ => {}
-    },
+    WebhookEventPayload::Issues(payload)
+      if matches!(payload.action, IssuesWebhookEventAction::Opened) =>
+    {
+      tokio::spawn(on_issue_opened(ctx, repository, sender, payload));
+    }
 
-    WebhookEventPayload::DiscussionComment(payload) => match &payload.action {
-      DiscussionCommentWebhookEventAction::Created => {
-        tokio::spawn(on_discussion_comment(ctx, repository, payload));
-      }
-      _ => {}
-    },
+    WebhookEventPayload::Discussion(payload)
+      if matches!(payload.action, DiscussionWebhookEventAction::Created) =>
+    {
+      tokio::spawn(on_discussion_created(ctx, repository, sender, payload));
+    }
+
+    WebhookEventPayload::DiscussionComment(payload)
+      if matches!(payload.action, DiscussionCommentWebhookEventAction::Created) =>
+    {
+      tokio::spawn(on_discussion_comment(ctx, repository, payload));
+    }
 
     WebhookEventPayload::PullRequest(payload) => match &payload.action {
       PullRequestWebhookEventAction::Opened
@@ -92,12 +87,14 @@ pub async fn triggers_github_post(
       _ => {}
     },
 
-    WebhookEventPayload::PullRequestReviewComment(payload) => match &payload.action {
-      PullRequestReviewCommentWebhookEventAction::Created => {
-        tokio::spawn(on_pr_review_comment(ctx, repository, payload));
-      }
-      _ => {}
-    },
+    WebhookEventPayload::PullRequestReviewComment(payload)
+      if matches!(
+        payload.action,
+        PullRequestReviewCommentWebhookEventAction::Created
+      ) =>
+    {
+      tokio::spawn(on_pr_review_comment(ctx, repository, payload));
+    }
 
     WebhookEventPayload::IssueComment(payload) => {
       // `issue_comment` fires for both issues and PRs. For a PR,
@@ -111,12 +108,6 @@ pub async fn triggers_github_post(
         (IssueCommentWebhookEventAction::Created, true) => {
           tokio::spawn(on_pr_comment(ctx, repository, payload));
         }
-        (IssueCommentWebhookEventAction::Edited, true) => {
-          tokio::spawn(on_pr_comment_edited(repository, payload));
-        }
-        (IssueCommentWebhookEventAction::Deleted, true) => {
-          tokio::spawn(on_pr_comment_deleted(repository, payload));
-        }
         _ => {}
       }
     }
@@ -125,15 +116,6 @@ pub async fn triggers_github_post(
   }
 
   res.status(StatusCode::NO_CONTENT).body(vec![])
-}
-
-async fn on_issue_labeled(
-  _repository: Option<Repository>,
-  payload: Box<IssuesWebhookEventPayload>,
-) -> anyhow::Result<()> {
-  println!("on_issue_labeled");
-  // dbg!(&payload);
-  Ok(())
 }
 
 async fn on_issue_opened(
@@ -354,24 +336,6 @@ async fn mentions_machine_user(
 ) -> anyhow::Result<bool> {
   let login = github::get_user_login(&ctx.github, ctx.github_machine_user_id).await?;
   Ok(github::mentions(body, &login))
-}
-
-async fn on_pr_comment_edited(
-  _repository: Option<Repository>,
-  payload: Box<IssueCommentWebhookEventPayload>,
-) -> anyhow::Result<()> {
-  println!("on_pr_comment_edited");
-  // dbg!(&payload);
-  Ok(())
-}
-
-async fn on_pr_comment_deleted(
-  _repository: Option<Repository>,
-  payload: Box<IssueCommentWebhookEventPayload>,
-) -> anyhow::Result<()> {
-  println!("on_pr_comment_deleted");
-  // dbg!(&payload);
-  Ok(())
 }
 
 async fn on_pr_sync(

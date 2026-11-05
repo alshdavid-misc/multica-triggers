@@ -1,7 +1,6 @@
 mod handler_context;
 mod handlers;
 mod workers;
-use std::sync::Arc;
 use std::time::Duration;
 
 use uhttp::Router;
@@ -44,10 +43,7 @@ pub async fn main(
     Duration::from_secs(30),
   );
 
-  let mut app = Router::new(HandlerContext {
-    ctx,
-    args: Arc::new(args),
-  });
+  let mut app = Router::new(HandlerContext { ctx });
 
   app.any("/triggers/github", handlers::triggers_github_post);
 

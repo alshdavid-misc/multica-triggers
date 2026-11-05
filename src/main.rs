@@ -32,10 +32,6 @@ struct CommandConfig {
   #[clap(long, env = "MULTICA_WORKSPACE_ID")]
   pub multica_workspace_id: String,
 
-  /// Multica project identifier
-  #[clap(long, env = "MULTICA_PROJECT_ID")]
-  pub multica_project_id: Option<String>,
-
   /// Authentication token for the GitHub API
   #[clap(long, env = "GITHUB_TOKEN", hide_env_values = true)]
   pub github_token: String,
@@ -111,8 +107,6 @@ async fn main() -> anyhow::Result<()> {
     multica_url: cmd.config.multica_url,
     multica_token: cmd.config.multica_token,
     multica_workspace_id: cmd.config.multica_workspace_id,
-    multica_project_id: cmd.config.multica_project_id,
-    github_token: cmd.config.github_token,
     github_webhook_secret: cmd.config.github_webhook_secret,
     github_user_reply_list: cmd.config.user_reply_list,
     github_machine_user_id: cmd.config.github_machine_user_id,
