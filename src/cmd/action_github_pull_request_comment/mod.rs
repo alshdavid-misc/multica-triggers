@@ -1,8 +1,7 @@
-use octocrab::models::reactions::ReactionContent;
 use serde::Serialize;
 
+use crate::cmd::acknowledge::acknowledge;
 use crate::context::AppContext;
-use crate::context::PendingRun;
 use crate::platform::github;
 use crate::platform::multica;
 
@@ -94,41 +93,11 @@ pub async fn main(
   )
   .await?;
 
-  if response.status != "accepted" {
-    eprintln!(
-      "pull request comment webhook not accepted ({}) for {repo}#{pull_request}",
-      response.status
-    );
-    return Ok(());
-  }
-
-  let comment_kind = if review_comment {
-    github::CommentKind::Review
+  let target = if review_comment {
+    github::ReactionTarget::ReviewComment(comment_id)
   } else {
-    github::CommentKind::Issue
+    github::ReactionTarget::IssueComment(comment_id)
   };
 
-  let reaction_id = github::add_comment_reaction(
-    &github,
-    &repo,
-    comment_kind,
-    comment_id,
-    ReactionContent::Eyes,
-  )
-  .await?;
-
-  if let (Some(run_id), Some(autopilot_id)) = (response.run_id, response.autopilot_id) {
-    pending_runs.lock().unwrap().insert(
-      run_id,
-      PendingRun {
-        autopilot_id,
-        repo,
-        comment_kind,
-        comment_id,
-        reaction_id,
-      },
-    );
-  }
-
-  Ok(())
+  acknowledge(&github, &pending_runs, &repo, target, response).await
 }

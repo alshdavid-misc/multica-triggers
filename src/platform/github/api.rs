@@ -56,27 +56,33 @@ pub async fn get_pr_comment(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum CommentKind {
-  Issue,
-  Review,
+pub enum ReactionTarget {
+  Issue(u64),
+  IssueComment(u64),
+  ReviewComment(u64),
 }
 
-pub async fn add_comment_reaction(
+pub async fn add_reaction(
   client: &Octocrab,
   repo: &str,
-  kind: CommentKind,
-  comment_id: u64,
+  target: ReactionTarget,
   content: ReactionContent,
 ) -> anyhow::Result<u64> {
   let (owner, name) = split_repo(repo)?;
-  let reaction = match kind {
-    CommentKind::Issue => {
+  let reaction = match target {
+    ReactionTarget::Issue(number) => {
+      client
+        .issues(owner, name)
+        .create_reaction(number, content)
+        .await?
+    }
+    ReactionTarget::IssueComment(comment_id) => {
       client
         .issues(owner, name)
         .create_comment_reaction(CommentId(comment_id), content)
         .await?
     }
-    CommentKind::Review => {
+    ReactionTarget::ReviewComment(comment_id) => {
       client
         .pulls(owner, name)
         .create_comment_reaction(CommentId(comment_id), content)
@@ -86,25 +92,31 @@ pub async fn add_comment_reaction(
   Ok(reaction.id.into_inner())
 }
 
-pub async fn remove_comment_reaction(
+pub async fn remove_reaction(
   client: &Octocrab,
   repo: &str,
-  kind: CommentKind,
-  comment_id: u64,
+  target: ReactionTarget,
   reaction_id: u64,
 ) -> anyhow::Result<()> {
   let (owner, name) = split_repo(repo)?;
-  match kind {
-    CommentKind::Issue => {
+  let reaction_id = ReactionId(reaction_id);
+  match target {
+    ReactionTarget::Issue(number) => {
       client
         .issues(owner, name)
-        .delete_comment_reaction(CommentId(comment_id), ReactionId(reaction_id))
+        .delete_reaction(number, reaction_id)
         .await?
     }
-    CommentKind::Review => {
+    ReactionTarget::IssueComment(comment_id) => {
+      client
+        .issues(owner, name)
+        .delete_comment_reaction(CommentId(comment_id), reaction_id)
+        .await?
+    }
+    ReactionTarget::ReviewComment(comment_id) => {
       client
         .pulls(owner, name)
-        .delete_comment_reaction(CommentId(comment_id), ReactionId(reaction_id))
+        .delete_comment_reaction(CommentId(comment_id), reaction_id)
         .await?
     }
   };

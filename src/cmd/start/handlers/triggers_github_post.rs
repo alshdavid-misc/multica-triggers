@@ -56,6 +56,9 @@ pub async fn triggers_github_post(
 
   match event.specific {
     WebhookEventPayload::Issues(payload) => match &payload.action {
+      IssuesWebhookEventAction::Opened => {
+        tokio::spawn(on_issue_opened(ctx, repository, sender, payload));
+      }
       IssuesWebhookEventAction::Labeled => {
         tokio::spawn(on_issue_labeled(repository, payload));
       }
@@ -85,7 +88,7 @@ pub async fn triggers_github_post(
 
       match (&payload.action, on_pr) {
         (IssueCommentWebhookEventAction::Created, false) => {
-          tokio::spawn(on_issue_comment(repository, payload));
+          tokio::spawn(on_issue_comment(ctx, repository, payload));
         }
         (IssueCommentWebhookEventAction::Created, true) => {
           tokio::spawn(on_pr_comment(ctx, repository, payload));
@@ -115,13 +118,69 @@ async fn on_issue_labeled(
   Ok(())
 }
 
+async fn on_issue_opened(
+  ctx: AppContext,
+  repository: Option<Repository>,
+  sender: Option<Author>,
+  payload: Box<IssuesWebhookEventPayload>,
+) -> anyhow::Result<()> {
+  use crate::cmd::action_github_issue::ActionGithubIssueCommand;
+  use crate::cmd::action_github_issue::main;
+
+  let repo = repository
+    .and_then(|r| r.full_name)
+    .ok_or_else(|| anyhow::anyhow!("issue event has no repository"))?;
+
+  if sender.is_some_and(|sender| sender.id.into_inner() == ctx.github_machine_user_id) {
+    return Ok(());
+  }
+
+  let body = payload.issue.body.as_deref().unwrap_or_default();
+  if !mentions_machine_user(&ctx, body).await? {
+    return Ok(());
+  }
+
+  main(
+    ctx,
+    ActionGithubIssueCommand {
+      repo,
+      issue: payload.issue.number,
+      comment_id: None,
+    },
+  )
+  .await
+}
+
 async fn on_issue_comment(
-  _repository: Option<Repository>,
+  ctx: AppContext,
+  repository: Option<Repository>,
   payload: Box<IssueCommentWebhookEventPayload>,
 ) -> anyhow::Result<()> {
-  println!("on_issue_comment");
-  // dbg!(&payload);
-  Ok(())
+  use crate::cmd::action_github_issue::ActionGithubIssueCommand;
+  use crate::cmd::action_github_issue::main;
+
+  let repo = repository
+    .and_then(|r| r.full_name)
+    .ok_or_else(|| anyhow::anyhow!("issue comment event has no repository"))?;
+
+  if payload.comment.user.id.into_inner() == ctx.github_machine_user_id {
+    return Ok(());
+  }
+
+  let body = payload.comment.body.as_deref().unwrap_or_default();
+  if !mentions_machine_user(&ctx, body).await? {
+    return Ok(());
+  }
+
+  main(
+    ctx,
+    ActionGithubIssueCommand {
+      repo,
+      issue: payload.issue.number,
+      comment_id: Some(payload.comment.id.into_inner()),
+    },
+  )
+  .await
 }
 
 async fn on_pr_comment(

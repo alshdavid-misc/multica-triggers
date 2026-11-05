@@ -51,6 +51,9 @@ struct CommandConfig {
   #[clap(long, env = "GITHUB_MACHINE_USER_ID")]
   pub github_machine_user_id: u64,
 
+  #[clap(long, env = "MULTICA_ISSUE_MENTION_WEBHOOK")]
+  pub multica_issue_mention_webhook: Option<String>,
+
   #[clap(long, env = "MULTICA_PULL_REQUEST_COMMENT_WEBHOOK")]
   pub multica_pull_request_comment_webhook: Option<String>,
 
@@ -106,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
     github_webhook_secret: cmd.config.github_webhook_secret,
     github_user_reply_list: cmd.config.user_reply_list,
     github_machine_user_id: cmd.config.github_machine_user_id,
+    multica_issue_mention_webhook: cmd.config.multica_issue_mention_webhook,
     multica_pull_request_comment_webhook: cmd.config.multica_pull_request_comment_webhook,
     multica_pull_request_sync_webhook: cmd.config.multica_pull_request_sync_webhook,
     github: Arc::new(github),

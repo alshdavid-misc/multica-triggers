@@ -32,14 +32,8 @@ pub async fn poll_autopilot_runs(ctx: AppContext) -> anyhow::Result<()> {
       }
     }
 
-    if let Err(error) = github::remove_comment_reaction(
-      &ctx.github,
-      &run.repo,
-      run.comment_kind,
-      run.comment_id,
-      run.reaction_id,
-    )
-    .await
+    if let Err(error) =
+      github::remove_reaction(&ctx.github, &run.repo, run.target, run.reaction_id).await
     {
       eprintln!("failed to remove reaction for autopilot run {run_id}: {error:?}");
     }
