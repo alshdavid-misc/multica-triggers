@@ -5,6 +5,8 @@ use octocrab::models::webhook_events::payload::IssueCommentWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssueCommentWebhookEventPayload;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventPayload;
+use octocrab::models::webhook_events::payload::PullRequestWebhookEventAction;
+use octocrab::models::webhook_events::payload::PullRequestWebhookEventPayload;
 use uhttp::HandlerResponse;
 use uhttp::StatusCode;
 
@@ -39,6 +41,16 @@ pub async fn triggers_github_post(
     WebhookEventPayload::Issues(payload) => match &payload.action {
       IssuesWebhookEventAction::Labeled => {
         tokio::spawn(on_issue_labeled(repository, payload));
+      }
+      _ => {}
+    },
+
+    WebhookEventPayload::PullRequest(payload) => match &payload.action {
+      PullRequestWebhookEventAction::Opened
+      | PullRequestWebhookEventAction::Synchronize
+      | PullRequestWebhookEventAction::Reopened
+      | PullRequestWebhookEventAction::ReadyForReview => {
+        tokio::spawn(on_pr_sync(repository, payload));
       }
       _ => {}
     },
@@ -127,5 +139,13 @@ async fn on_pr_comment_deleted(
 ) -> anyhow::Result<()> {
   println!("on_pr_comment_deleted");
   // dbg!(&payload);
+  Ok(())
+}
+
+async fn on_pr_sync(
+  _repository: Option<Repository>,
+  _payload: Box<PullRequestWebhookEventPayload>,
+) -> anyhow::Result<()> {
+  println!("on_pr_sync");
   Ok(())
 }
