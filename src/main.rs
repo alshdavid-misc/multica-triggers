@@ -51,6 +51,9 @@ struct CommandConfig {
   #[clap(long, env = "GITHUB_MACHINE_USER_ID")]
   pub github_machine_user_id: u64,
 
+  #[clap(long, env = "MULTICA_PULL_REQUEST_COMMENT_WEBHOOK")]
+  pub multica_pull_request_comment_webhook: Option<String>,
+
   #[clap(long, env = "MULTICA_PULL_REQUEST_SYNC_WEBHOOK")]
   pub multica_pull_request_sync_webhook: Option<String>,
 }
