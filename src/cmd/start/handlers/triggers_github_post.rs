@@ -45,10 +45,6 @@ pub async fn triggers_github_post(
     return res.status(StatusCode::UNAUTHORIZED).body(vec![]);
   }
 
-  // let body = uhttp::body::json::<serde_json::Value>(&mut req.body).await?;
-  // println!("{}", serde_json::to_string_pretty(&body)?);
-  // let body = serde_json::to_vec(&body)?;
-
   let event = WebhookEvent::try_from_header_and_body(&event_name, &body)?;
   let repository = event.repository;
   let sender = event.sender;
@@ -60,7 +56,6 @@ pub async fn triggers_github_post(
       }
       _ => {}
     },
-
     WebhookEventPayload::PullRequest(payload) => match &payload.action {
       PullRequestWebhookEventAction::Opened
       | PullRequestWebhookEventAction::Synchronize
