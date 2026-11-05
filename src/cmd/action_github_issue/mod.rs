@@ -81,10 +81,10 @@ pub async fn main(
   )
   .await?;
 
-  let target = match comment_id {
-    Some(comment_id) => github::ReactionTarget::IssueComment(comment_id),
-    None => github::ReactionTarget::Issue(issue),
+  let subject_id = match comment {
+    Some(comment) => comment.node_id,
+    None => github_issue.node_id,
   };
 
-  acknowledge(&github, &pending_runs, &repo, target, response).await
+  acknowledge(&github, &pending_runs, subject_id, response).await
 }

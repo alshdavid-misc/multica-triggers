@@ -2,6 +2,10 @@ use octocrab::models::Author;
 use octocrab::models::Repository;
 use octocrab::models::webhook_events::WebhookEvent;
 use octocrab::models::webhook_events::WebhookEventPayload;
+use octocrab::models::webhook_events::payload::DiscussionCommentWebhookEventAction;
+use octocrab::models::webhook_events::payload::DiscussionCommentWebhookEventPayload;
+use octocrab::models::webhook_events::payload::DiscussionWebhookEventAction;
+use octocrab::models::webhook_events::payload::DiscussionWebhookEventPayload;
 use octocrab::models::webhook_events::payload::IssueCommentWebhookEventAction;
 use octocrab::models::webhook_events::payload::IssueCommentWebhookEventPayload;
 use octocrab::models::webhook_events::payload::IssuesWebhookEventAction;
@@ -64,6 +68,20 @@ pub async fn triggers_github_post(
       }
       _ => {}
     },
+    WebhookEventPayload::Discussion(payload) => match &payload.action {
+      DiscussionWebhookEventAction::Created => {
+        tokio::spawn(on_discussion_created(ctx, repository, sender, payload));
+      }
+      _ => {}
+    },
+
+    WebhookEventPayload::DiscussionComment(payload) => match &payload.action {
+      DiscussionCommentWebhookEventAction::Created => {
+        tokio::spawn(on_discussion_comment(ctx, repository, payload));
+      }
+      _ => {}
+    },
+
     WebhookEventPayload::PullRequest(payload) => match &payload.action {
       PullRequestWebhookEventAction::Opened
       | PullRequestWebhookEventAction::Synchronize
@@ -235,6 +253,83 @@ async fn on_pr_review_comment(
       pull_request: payload.pull_request.number,
       comment_id: payload.comment.id.into_inner(),
       review_comment: true,
+    },
+  )
+  .await
+}
+
+async fn on_discussion_created(
+  ctx: AppContext,
+  repository: Option<Repository>,
+  sender: Option<Author>,
+  payload: Box<DiscussionWebhookEventPayload>,
+) -> anyhow::Result<()> {
+  use crate::cmd::action_github_discussion::ActionGithubDiscussionCommand;
+  use crate::cmd::action_github_discussion::main;
+
+  let repo = repository
+    .and_then(|r| r.full_name)
+    .ok_or_else(|| anyhow::anyhow!("discussion event has no repository"))?;
+
+  if sender.is_some_and(|sender| sender.id.into_inner() == ctx.github_machine_user_id) {
+    return Ok(());
+  }
+
+  let body = payload.discussion["body"].as_str().unwrap_or_default();
+  if !mentions_machine_user(&ctx, body).await? {
+    return Ok(());
+  }
+
+  let discussion = payload.discussion["number"]
+    .as_u64()
+    .ok_or_else(|| anyhow::anyhow!("discussion event has no discussion number"))?;
+
+  main(
+    ctx,
+    ActionGithubDiscussionCommand {
+      repo,
+      discussion,
+      comment_node_id: None,
+    },
+  )
+  .await
+}
+
+async fn on_discussion_comment(
+  ctx: AppContext,
+  repository: Option<Repository>,
+  payload: Box<DiscussionCommentWebhookEventPayload>,
+) -> anyhow::Result<()> {
+  use crate::cmd::action_github_discussion::ActionGithubDiscussionCommand;
+  use crate::cmd::action_github_discussion::main;
+
+  let repo = repository
+    .and_then(|r| r.full_name)
+    .ok_or_else(|| anyhow::anyhow!("discussion comment event has no repository"))?;
+
+  if payload.comment["user"]["id"].as_u64() == Some(ctx.github_machine_user_id) {
+    return Ok(());
+  }
+
+  let body = payload.comment["body"].as_str().unwrap_or_default();
+  if !mentions_machine_user(&ctx, body).await? {
+    return Ok(());
+  }
+
+  let discussion = payload.discussion["number"]
+    .as_u64()
+    .ok_or_else(|| anyhow::anyhow!("discussion comment event has no discussion number"))?;
+  let comment_node_id = payload.comment["node_id"]
+    .as_str()
+    .ok_or_else(|| anyhow::anyhow!("discussion comment event has no comment node id"))?
+    .to_owned();
+
+  main(
+    ctx,
+    ActionGithubDiscussionCommand {
+      repo,
+      discussion,
+      comment_node_id: Some(comment_node_id),
     },
   )
   .await

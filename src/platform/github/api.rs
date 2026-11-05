@@ -1,12 +1,10 @@
 use octocrab::Octocrab;
 use octocrab::models::CommentId;
-use octocrab::models::ReactionId;
 use octocrab::models::UserId;
 use octocrab::models::issues::Comment;
 use octocrab::models::issues::Issue;
 use octocrab::models::pulls::Comment as PullRequestComment;
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::reactions::ReactionContent;
 
 pub async fn get_issue(
   client: &Octocrab,
@@ -55,74 +53,6 @@ pub async fn get_pr_comment(
   )
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ReactionTarget {
-  Issue(u64),
-  IssueComment(u64),
-  ReviewComment(u64),
-}
-
-pub async fn add_reaction(
-  client: &Octocrab,
-  repo: &str,
-  target: ReactionTarget,
-  content: ReactionContent,
-) -> anyhow::Result<u64> {
-  let (owner, name) = split_repo(repo)?;
-  let reaction = match target {
-    ReactionTarget::Issue(number) => {
-      client
-        .issues(owner, name)
-        .create_reaction(number, content)
-        .await?
-    }
-    ReactionTarget::IssueComment(comment_id) => {
-      client
-        .issues(owner, name)
-        .create_comment_reaction(CommentId(comment_id), content)
-        .await?
-    }
-    ReactionTarget::ReviewComment(comment_id) => {
-      client
-        .pulls(owner, name)
-        .create_comment_reaction(CommentId(comment_id), content)
-        .await?
-    }
-  };
-  Ok(reaction.id.into_inner())
-}
-
-pub async fn remove_reaction(
-  client: &Octocrab,
-  repo: &str,
-  target: ReactionTarget,
-  reaction_id: u64,
-) -> anyhow::Result<()> {
-  let (owner, name) = split_repo(repo)?;
-  let reaction_id = ReactionId(reaction_id);
-  match target {
-    ReactionTarget::Issue(number) => {
-      client
-        .issues(owner, name)
-        .delete_reaction(number, reaction_id)
-        .await?
-    }
-    ReactionTarget::IssueComment(comment_id) => {
-      client
-        .issues(owner, name)
-        .delete_comment_reaction(CommentId(comment_id), reaction_id)
-        .await?
-    }
-    ReactionTarget::ReviewComment(comment_id) => {
-      client
-        .pulls(owner, name)
-        .delete_comment_reaction(CommentId(comment_id), reaction_id)
-        .await?
-    }
-  };
-  Ok(())
-}
-
 pub async fn get_user_login(
   client: &Octocrab,
   user_id: u64,
@@ -144,7 +74,7 @@ pub async fn add_label(
   Ok(())
 }
 
-fn split_repo(repo: &str) -> anyhow::Result<(&str, &str)> {
+pub(super) fn split_repo(repo: &str) -> anyhow::Result<(&str, &str)> {
   repo
     .split_once('/')
     .ok_or_else(|| anyhow::anyhow!("invalid repo name, expected owner/name: {repo}"))

@@ -60,9 +60,10 @@ pub async fn main(
     .html_url
     .ok_or_else(|| anyhow::anyhow!("pull request {repo}#{pull_request} has no html url"))?;
 
-  let (comment_url, comment_author, comment_body, line) = if review_comment {
+  let (node_id, comment_url, comment_author, comment_body, line) = if review_comment {
     let comment = github::get_pr_comment(&github, &repo, comment_id).await?;
     (
+      comment.node_id,
       comment.html_url,
       comment.user.map(|user| user.login).unwrap_or_default(),
       comment.body,
@@ -71,6 +72,7 @@ pub async fn main(
   } else {
     let comment = github::get_issue_comment(&github, &repo, comment_id).await?;
     (
+      comment.node_id,
       comment.html_url.to_string(),
       comment.user.login,
       comment.body.unwrap_or_default(),
@@ -93,11 +95,5 @@ pub async fn main(
   )
   .await?;
 
-  let target = if review_comment {
-    github::ReactionTarget::ReviewComment(comment_id)
-  } else {
-    github::ReactionTarget::IssueComment(comment_id)
-  };
-
-  acknowledge(&github, &pending_runs, &repo, target, response).await
+  acknowledge(&github, &pending_runs, node_id, response).await
 }
