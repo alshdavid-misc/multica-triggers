@@ -1,3 +1,4 @@
+use octocrab::models::Author;
 use octocrab::models::Repository;
 use octocrab::models::webhook_events::WebhookEvent;
 use octocrab::models::webhook_events::WebhookEventPayload;
@@ -36,6 +37,7 @@ pub async fn triggers_github_post(
 
   let event = WebhookEvent::try_from_header_and_body(&event_name, &body)?;
   let repository = event.repository;
+  let sender = event.sender;
 
   match event.specific {
     WebhookEventPayload::Issues(payload) => match &payload.action {
@@ -50,7 +52,7 @@ pub async fn triggers_github_post(
       | PullRequestWebhookEventAction::Synchronize
       | PullRequestWebhookEventAction::Reopened
       | PullRequestWebhookEventAction::ReadyForReview => {
-        tokio::spawn(on_pr_sync(ctx, repository, payload));
+        tokio::spawn(on_pr_sync(ctx, repository, sender, payload));
       }
       _ => {}
     },
@@ -145,6 +147,7 @@ async fn on_pr_comment_deleted(
 async fn on_pr_sync(
   ctx: AppContext,
   repository: Option<Repository>,
+  sender: Option<Author>,
   payload: Box<PullRequestWebhookEventPayload>,
 ) -> anyhow::Result<()> {
   use crate::cmd::action_github_pull_request_sync::ActionGithubPullRequestSyncCommand;
@@ -154,11 +157,17 @@ async fn on_pr_sync(
     .and_then(|r| r.full_name)
     .ok_or_else(|| anyhow::anyhow!("pull request event has no repository"))?;
 
-  /*
-    if the user_reply_list is set, do nothing if the event was raised by a user not on the list, return
+  let sender_id = sender.map(|sender| sender.id.into_inner());
 
-    if the user ID is the machine user's ID, return
-  */
+  if let Some(users) = &ctx.github_user_reply_list
+    && !sender_id.is_some_and(|id| users.contains(&id))
+  {
+    return Ok(());
+  }
+
+  if sender_id == Some(ctx.github_machine_user_id) {
+    return Ok(());
+  }
 
   main(
     ctx,
