@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use octocrab::Octocrab;
 
 use crate::context::PendingRun;
+use crate::context::PendingRunCleanup;
 use crate::platform::github;
 use crate::platform::multica::WebhookResponse;
 
@@ -31,7 +32,7 @@ pub async fn acknowledge(
       run_id,
       PendingRun {
         autopilot_id,
-        subject_id,
+        cleanup: PendingRunCleanup::RemoveEyesReaction { subject_id },
       },
     );
   }

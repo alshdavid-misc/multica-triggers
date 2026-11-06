@@ -24,6 +24,17 @@ pub struct AppContext {
 #[derive(Debug, Clone)]
 pub struct PendingRun {
   pub autopilot_id: String,
-  /// GraphQL node id of the issue, comment or discussion that was reacted to.
-  pub subject_id: String,
+  pub cleanup: PendingRunCleanup,
+}
+
+#[derive(Debug, Clone)]
+pub enum PendingRunCleanup {
+  RemoveEyesReaction {
+    /// GraphQL node id of the issue, comment or discussion that was reacted to.
+    subject_id: String,
+  },
+  DeleteIssueComment {
+    repo: String,
+    comment_id: u64,
+  },
 }

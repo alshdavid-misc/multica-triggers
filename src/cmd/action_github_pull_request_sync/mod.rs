@@ -1,6 +1,8 @@
 use serde::Serialize;
 
 use crate::context::AppContext;
+use crate::context::PendingRun;
+use crate::context::PendingRunCleanup;
 use crate::platform::github;
 use crate::platform::multica;
 
@@ -26,6 +28,7 @@ pub async fn main(
   AppContext {
     github,
     multica_pull_request_sync_webhook,
+    pending_runs,
     ..
   }: AppContext,
   ActionGithubPullRequestSyncCommand { repo, pull_request }: ActionGithubPullRequestSyncCommand,
@@ -39,7 +42,7 @@ pub async fn main(
     .html_url
     .ok_or_else(|| anyhow::anyhow!("pull request {repo}#{pull_request} has no html url"))?;
 
-  multica::send_webhook(
+  let response = multica::send_webhook(
     &webhook,
     &PullRequestSync {
       repo: &repo,
@@ -48,6 +51,33 @@ pub async fn main(
     },
   )
   .await?;
+
+  if response.status != "accepted" {
+    eprintln!(
+      "webhook not accepted ({}) for {repo}#{pull_request}",
+      response.status
+    );
+    return Ok(());
+  }
+
+  // Without a run to poll the comment could never be deleted, so it is not posted.
+  let (Some(run_id), Some(autopilot_id)) = (response.run_id, response.autopilot_id) else {
+    return Ok(());
+  };
+
+  let comment =
+    github::create_issue_comment(&github, &repo, pull_request, "Review in progress").await?;
+
+  pending_runs.lock().unwrap().insert(
+    run_id,
+    PendingRun {
+      autopilot_id,
+      cleanup: PendingRunCleanup::DeleteIssueComment {
+        repo,
+        comment_id: comment.id.into_inner(),
+      },
+    },
+  );
 
   Ok(())
 }

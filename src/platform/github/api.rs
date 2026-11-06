@@ -29,6 +29,35 @@ pub async fn get_issue_comment(
   )
 }
 
+pub async fn create_issue_comment(
+  client: &Octocrab,
+  repo: &str,
+  number: u64,
+  body: &str,
+) -> anyhow::Result<Comment> {
+  let (owner, name) = split_repo(repo)?;
+  Ok(
+    client
+      .issues(owner, name)
+      .create_comment(number, body)
+      .await?,
+  )
+}
+
+pub async fn delete_issue_comment(
+  client: &Octocrab,
+  repo: &str,
+  comment_id: u64,
+) -> anyhow::Result<()> {
+  let (owner, name) = split_repo(repo)?;
+  Ok(
+    client
+      .issues(owner, name)
+      .delete_comment(CommentId(comment_id))
+      .await?,
+  )
+}
+
 pub async fn get_pull_request(
   client: &Octocrab,
   repo: &str,
