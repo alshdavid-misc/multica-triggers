@@ -30,6 +30,7 @@ pub async fn main(
     github,
     multica_pull_request_sync_webhook,
     pending_runs,
+    poll_runs,
     ..
   }: AppContext,
   ActionGithubPullRequestSyncCommand { repo, pull_request }: ActionGithubPullRequestSyncCommand,
@@ -94,6 +95,8 @@ pub async fn main(
       cancel_requested: false,
     },
   );
+
+  poll_runs.notify_one();
 
   Ok(())
 }

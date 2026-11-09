@@ -116,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
     multica_pull_request_sync_webhook: cmd.config.multica_pull_request_sync_webhook,
     github: Arc::new(github),
     pending_runs: Default::default(),
+    poll_runs: Default::default(),
   };
 
   match cmd.command {

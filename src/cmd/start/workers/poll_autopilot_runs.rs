@@ -1,7 +1,11 @@
+use std::time::Duration;
+
 use crate::context::AppContext;
 use crate::context::PendingRunCleanup;
 use crate::platform::github;
 use crate::platform::multica;
+
+const FOLLOW_UP_DELAY: Duration = Duration::from_secs(2);
 
 pub async fn poll_autopilot_runs(ctx: AppContext) -> anyhow::Result<()> {
   let pending: Vec<_> = ctx
@@ -11,6 +15,8 @@ pub async fn poll_autopilot_runs(ctx: AppContext) -> anyhow::Result<()> {
     .iter()
     .map(|(run_id, run)| (run_id.clone(), run.clone()))
     .collect();
+
+  let mut follow_up = false;
 
   for (run_id, run) in pending {
     let autopilot_run = multica::get_autopilot_run(
@@ -42,6 +48,7 @@ pub async fn poll_autopilot_runs(ctx: AppContext) -> anyhow::Result<()> {
         {
           eprintln!("failed to cancel superseded autopilot run {run_id}: {error:?}");
         }
+        follow_up |= run.cancel_requested;
         continue;
       }
       Ok(_) => {}
@@ -65,6 +72,16 @@ pub async fn poll_autopilot_runs(ctx: AppContext) -> anyhow::Result<()> {
     }
 
     ctx.pending_runs.lock().unwrap().remove(&run_id);
+  }
+
+  // Multica settles a cancelled run asynchronously, so a superseded run is
+  // re-polled shortly rather than waiting out the full interval.
+  if follow_up {
+    let poll_runs = ctx.poll_runs.clone();
+    tokio::spawn(async move {
+      tokio::time::sleep(FOLLOW_UP_DELAY).await;
+      poll_runs.notify_one();
+    });
   }
 
   Ok(())

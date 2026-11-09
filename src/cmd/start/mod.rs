@@ -41,6 +41,7 @@ pub async fn main(
     ctx.clone(),
     workers::poll_autopilot_runs,
     Duration::from_secs(30),
+    ctx.poll_runs.clone(),
   );
 
   let mut app = Router::new(HandlerContext { ctx });

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use octocrab::Octocrab;
+use tokio::sync::Notify;
 
 #[derive(Clone)]
 pub struct AppContext {
@@ -19,6 +20,7 @@ pub struct AppContext {
   pub github: Arc<Octocrab>,
   /// Autopilot runs, keyed by run id, whose GitHub node still carries a 👀 reaction.
   pub pending_runs: Arc<Mutex<HashMap<String, PendingRun>>>,
+  pub poll_runs: Arc<Notify>,
 }
 
 #[derive(Debug, Clone)]
