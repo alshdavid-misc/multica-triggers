@@ -13,3 +13,4 @@ pub use self::graphql::get_discussion;
 pub use self::graphql::get_discussion_comment;
 pub use self::graphql::remove_eyes_reaction;
 pub use self::mention::mentions;
+pub use self::mention::mentions_command;

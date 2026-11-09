@@ -22,6 +22,8 @@ use crate::context::AppContext;
 use crate::platform::crypto;
 use crate::platform::github;
 
+const REVIEW_COMMAND: &str = "review";
+
 pub async fn triggers_github_post(
   mut req: uhttp::Request,
   res: uhttp::Response,
@@ -200,7 +202,13 @@ async fn on_pr_comment(
   }
 
   let body = payload.comment.body.as_deref().unwrap_or_default();
-  if !mentions_machine_user(&ctx, body).await? {
+  let login = machine_user_login(&ctx).await?;
+
+  if github::mentions_command(body, &login, REVIEW_COMMAND) {
+    return review_pull_request(ctx, repo, payload.issue.number).await;
+  }
+
+  if !github::mentions(body, &login) {
     return Ok(());
   }
 
@@ -330,12 +338,31 @@ async fn on_discussion_comment(
   .await
 }
 
+async fn machine_user_login(ctx: &AppContext) -> anyhow::Result<String> {
+  github::get_user_login(&ctx.github, ctx.github_machine_user_id).await
+}
+
 async fn mentions_machine_user(
   ctx: &AppContext,
   body: &str,
 ) -> anyhow::Result<bool> {
-  let login = github::get_user_login(&ctx.github, ctx.github_machine_user_id).await?;
+  let login = machine_user_login(ctx).await?;
   Ok(github::mentions(body, &login))
+}
+
+async fn review_pull_request(
+  ctx: AppContext,
+  repo: String,
+  pull_request: u64,
+) -> anyhow::Result<()> {
+  use crate::cmd::action_github_pull_request_sync::ActionGithubPullRequestSyncCommand;
+  use crate::cmd::action_github_pull_request_sync::main;
+
+  main(
+    ctx,
+    ActionGithubPullRequestSyncCommand { repo, pull_request },
+  )
+  .await
 }
 
 async fn on_pr_sync(
