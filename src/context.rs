@@ -25,6 +25,14 @@ pub struct AppContext {
 pub struct PendingRun {
   pub autopilot_id: String,
   pub cleanup: PendingRunCleanup,
+  pub pull_request: Option<PullRequestKey>,
+  pub cancel_requested: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PullRequestKey {
+  pub repo: String,
+  pub number: u64,
 }
 
 #[derive(Debug, Clone)]

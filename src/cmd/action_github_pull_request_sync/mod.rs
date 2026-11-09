@@ -3,6 +3,7 @@ use serde::Serialize;
 use crate::context::AppContext;
 use crate::context::PendingRun;
 use crate::context::PendingRunCleanup;
+use crate::context::PullRequestKey;
 use crate::platform::github;
 use crate::platform::multica;
 
@@ -68,7 +69,20 @@ pub async fn main(
   let comment =
     github::create_issue_comment(&github, &repo, pull_request, "Review in progress").await?;
 
-  pending_runs.lock().unwrap().insert(
+  let key = PullRequestKey {
+    repo: repo.clone(),
+    number: pull_request,
+  };
+
+  let mut pending_runs = pending_runs.lock().unwrap();
+
+  for run in pending_runs.values_mut() {
+    if run.pull_request.as_ref() == Some(&key) {
+      run.cancel_requested = true;
+    }
+  }
+
+  pending_runs.insert(
     run_id,
     PendingRun {
       autopilot_id,
@@ -76,6 +90,8 @@ pub async fn main(
         repo,
         comment_id: comment.id.into_inner(),
       },
+      pull_request: Some(key),
+      cancel_requested: false,
     },
   );
 

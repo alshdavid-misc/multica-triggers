@@ -33,6 +33,8 @@ pub async fn acknowledge(
       PendingRun {
         autopilot_id,
         cleanup: PendingRunCleanup::RemoveEyesReaction { subject_id },
+        pull_request: None,
+        cancel_requested: false,
       },
     );
   }
