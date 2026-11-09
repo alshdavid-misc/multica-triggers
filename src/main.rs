@@ -117,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
     github: Arc::new(github),
     pending_runs: Default::default(),
     poll_runs: Default::default(),
+    cleanup_lock: Default::default(),
   };
 
   match cmd.command {

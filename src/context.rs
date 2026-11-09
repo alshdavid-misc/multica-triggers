@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use octocrab::Octocrab;
+use parking_lot::Mutex;
 use tokio::sync::Notify;
 
 #[derive(Clone)]
@@ -18,29 +20,28 @@ pub struct AppContext {
   pub multica_pull_request_comment_webhook: Option<String>,
   pub multica_pull_request_sync_webhook: Option<String>,
   pub github: Arc<Octocrab>,
-  /// Autopilot runs, keyed by run id, whose GitHub node still carries a 👀 reaction.
   pub pending_runs: Arc<Mutex<HashMap<String, PendingRun>>>,
   pub poll_runs: Arc<Notify>,
+  pub cleanup_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
-#[derive(Debug, Clone)]
+pub type RunCleanup =
+  Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> + Send>;
+
 pub struct PendingRun {
+  pub run_id: String,
   pub autopilot_id: String,
-  pub cleanup: PendingRunCleanup,
-  pub pull_request: Option<PullRequestKey>,
+  pub cleanup: Option<RunCleanup>,
   pub cancel_requested: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PullRequestKey {
-  pub repo: String,
-  pub number: u64,
+pub fn run_key(run_id: &str) -> String {
+  format!("run:{run_id}")
 }
 
-#[derive(Debug, Clone)]
-pub enum PendingRunCleanup {
-  RemoveEyesReaction {
-    /// GraphQL node id of the issue, comment or discussion that was reacted to.
-    subject_id: String,
-  },
+pub fn pull_request_key(
+  repo: &str,
+  number: u64,
+) -> String {
+  format!("pull_request:{repo}#{number}")
 }
