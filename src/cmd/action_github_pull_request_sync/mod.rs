@@ -62,41 +62,44 @@ pub async fn main(
     return Ok(());
   }
 
-  // Without a run to poll the comment could never be deleted, so it is not posted.
+  // Without a run to poll the reaction could never be removed, so it is not added.
   let (Some(run_id), Some(autopilot_id)) = (response.run_id, response.autopilot_id) else {
     return Ok(());
   };
 
-  let comment =
-    github::create_issue_comment(&github, &repo, pull_request, "Review in progress").await?;
+  let subject_id = github_pull_request
+    .node_id
+    .ok_or_else(|| anyhow::anyhow!("pull request {repo}#{pull_request} has no node id"))?;
 
-  let key = PullRequestKey {
-    repo: repo.clone(),
-    number: pull_request,
-  };
+  // Registered before reacting so a finishing older run sees this one and leaves the shared reaction in place.
+  {
+    let key = PullRequestKey {
+      repo,
+      number: pull_request,
+    };
 
-  let mut pending_runs = pending_runs.lock().unwrap();
+    let mut pending_runs = pending_runs.lock().unwrap();
 
-  for run in pending_runs.values_mut() {
-    if run.pull_request.as_ref() == Some(&key) {
-      run.cancel_requested = true;
+    for run in pending_runs.values_mut() {
+      if run.pull_request.as_ref() == Some(&key) {
+        run.cancel_requested = true;
+      }
     }
-  }
 
-  pending_runs.insert(
-    run_id,
-    PendingRun {
-      autopilot_id,
-      cleanup: PendingRunCleanup::DeleteIssueComment {
-        repo,
-        comment_id: comment.id.into_inner(),
+    pending_runs.insert(
+      run_id,
+      PendingRun {
+        autopilot_id,
+        cleanup: PendingRunCleanup::RemoveEyesReaction {
+          subject_id: subject_id.clone(),
+        },
+        pull_request: Some(key),
+        cancel_requested: false,
       },
-      pull_request: Some(key),
-      cancel_requested: false,
-    },
-  );
+    );
+  }
 
   poll_runs.notify_one();
 
-  Ok(())
+  github::add_eyes_reaction(&github, &subject_id).await
 }

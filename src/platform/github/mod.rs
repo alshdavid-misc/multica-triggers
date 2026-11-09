@@ -3,8 +3,6 @@ mod graphql;
 mod mention;
 mod webhook;
 
-pub use self::api::create_issue_comment;
-pub use self::api::delete_issue_comment;
 pub use self::api::get_issue;
 pub use self::api::get_issue_comment;
 pub use self::api::get_pr_comment;

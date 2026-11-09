@@ -43,8 +43,4 @@ pub enum PendingRunCleanup {
     /// GraphQL node id of the issue, comment or discussion that was reacted to.
     subject_id: String,
   },
-  DeleteIssueComment {
-    repo: String,
-    comment_id: u64,
-  },
 }

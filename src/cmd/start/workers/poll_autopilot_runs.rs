@@ -58,20 +58,26 @@ pub async fn poll_autopilot_runs(ctx: AppContext) -> anyhow::Result<()> {
       }
     }
 
-    let cleanup = match &run.cleanup {
-      PendingRunCleanup::RemoveEyesReaction { subject_id } => {
-        github::remove_eyes_reaction(&ctx.github, subject_id).await
-      }
-      PendingRunCleanup::DeleteIssueComment { repo, comment_id } => {
-        github::delete_issue_comment(&ctx.github, repo, *comment_id).await
-      }
+    // Runs on the same pull request share one 👀 reaction, so it stays until the last of them finishes.
+    let shared = {
+      let mut pending_runs = ctx.pending_runs.lock().unwrap();
+      pending_runs.remove(&run_id);
+      run.pull_request.as_ref().is_some_and(|key| {
+        pending_runs
+          .values()
+          .any(|other| other.pull_request.as_ref() == Some(key))
+      })
     };
 
-    if let Err(error) = cleanup {
-      eprintln!("failed to clean up autopilot run {run_id}: {error:?}");
+    if shared {
+      continue;
     }
 
-    ctx.pending_runs.lock().unwrap().remove(&run_id);
+    let PendingRunCleanup::RemoveEyesReaction { subject_id } = &run.cleanup;
+
+    if let Err(error) = github::remove_eyes_reaction(&ctx.github, subject_id).await {
+      eprintln!("failed to clean up autopilot run {run_id}: {error:?}");
+    }
   }
 
   // Multica settles a cancelled run asynchronously, so a superseded run is
